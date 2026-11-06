@@ -1,0 +1,508 @@
+/**
+ * Design Tokens — MAJIDA Beauté Center
+ * מקור: docs/SRS.md נספח א.6 (פלטת צבעים)
+ *
+ * כל צבע מוגדר כאן פעם אחת כמשתנה CSS, ומחובר למטה ל-Tailwind (@theme)
+ * כך שניתן להשתמש בו כ-Tailwind class (bg-gold, text-charcoal וכו').
+ * שינוי ערך כאן משפיע על כל מקום בקוד שמשתמש בו.
+ */
+
+/**
+ * כלל ניגודיות צבעים — זהב (משימה 1.7, WCAG AA, יחס נדרש >= 4.5:1 לטקסט רגיל)
+ *
+ * --color-gold (#D2AB2E) מיועד אך ורק לשימוש על רקע כהה (ink/charcoal) — לוגו, אייקונים,
+ * כפתורים, או טקסט/הדגשות על רקע כהה. אסור להשתמש בו כצבע טקסט (text-gold) על רקע בהיר
+ * (champagne/white) — הניגודיות נכשלת (gold על champagne ≈ 2.0:1, מתחת לסף).
+ *
+ * --color-gold-dark (#7A5F10) הוא הווריאנט המאושר לטקסט/קישורים על רקע בהיר:
+ *   - gold-dark על champagne ≈ 5.6:1 (עובר AA)
+ *   - gold-dark על white ≈ 6.0:1 (עובר AA)
+ * שימוש: text-gold-dark בכל מקום שבו טקסט בגוון זהב מופיע על רקע champagne/white.
+ *
+ * אימות נוסף: gold על ink ≈ 9.0:1, gold על charcoal ≈ 8.0:1 — עוברים בבטחה (רקע כהה).
+ */
+:root {
+  /* פלטת מותג */
+  --color-gold: #D2AB2E; /* זהב מג׳ידה — לוגו/אייקונים/כפתורים על רקע כהה. לא לטקסט על רקע בהיר */
+  --color-ink: #0B0B0B; /* שחור לילה */
+  --color-champagne: #FAF6EC; /* שמפניה — רקע ממשק הניהול ואזורי תוכן בהירים */
+  --color-gold-dark: #7A5F10; /* זהב כהה — טקסט/קישורים/כפתורים על רקע בהיר */
+  --color-gold-light: #E9D58A; /* זהב בהיר — hover והדגשות על רקע כהה */
+  --color-charcoal: #1C1A17; /* פחם — טקסט ראשי על רקע בהיר */
+  --color-taupe: #6B5E4A; /* טאופ — טקסט משני ותוויות */
+  --color-white: #FFFFFF;
+
+  /* צבעי מערכת (פונקציונליים בלבד — לסטטוסים, לא לעיצוב כללי) */
+  --color-success: #2E7D5B;
+  --color-error: #B3261E;
+  --color-warning: #B26A00;
+
+  /*
+   * וריאנטים בהירים של success/error לשימוש כטקסט על רקע כהה (ink/charcoal) בלבד —
+   * נוספו במשימה 2.10 (בדיקת נגישות): ה-success/error הרגילים נבדקו ועומדים על
+   * כ-3.5-3.9:1 מול ink/charcoal, מתחת לסף WCAG AA (4.5:1) לטקסט רגיל.
+   * success-light (~10:1) ו-error-light (~6-7:1) נבדקו מול ink/charcoal ועוברים AA.
+   * אין להשתמש בהם כטקסט על רקע בהיר (champagne/white) — שם יש להשתמש ב-success/error הרגילים.
+   */
+  --color-success-light: #4ADE80;
+  --color-error-light: #F87171;
+
+  /* רדיוס פינות — נספח א.9: 8px לכרטיסים/כפתורים.
+     מוגדר כאן ומוזן ל-shadcn --radius כך שכל רכיבי ה-UI (Card, Button וכו')
+     מקבלים את הרדיוס מה-theme ולא מערך קשיח ברכיב עצמו. */
+  --radius-brand: 0.5rem; /* 8px */
+
+  /* ריווחים — Spacing Tokens נוספים לשימוש עקבי בממשק */
+  --spacing-brand-xs: 0.25rem; /* 4px */
+  --spacing-brand-sm: 0.5rem; /* 8px */
+  --spacing-brand-md: 1rem; /* 16px */
+  --spacing-brand-lg: 1.5rem; /* 24px */
+  --spacing-brand-xl: 2rem; /* 32px */
+  --spacing-brand-2xl: 3rem; /* 48px */
+
+  /* ==================================================================
+   * משימה 2.11 — כיוון עיצובי לדף הנחיתה ("אטלייה נואר ושמפניה")
+   * הרחבת פלטה מאושרת (ראו PLAN.md Notes/Risks). כל הטוקנים הם המשך של
+   * זהב/שחור לילה/שמפניה (נספח א׳). יחסי ניגודיות WCAG חושבו ידנית.
+   * ================================================================== */
+
+  /* --- סולם זהב (tints/shades) --- */
+  --color-gold-pale: #F4EACB; /* זהב חיוור — טקסט/הדגשה על רקע כהה (ink 16.4:1, charcoal 14.5:1); רקע להדגשה עדינה על בהיר */
+  --color-gold-deep: #5A450A; /* זהב עמוק — טקסט מודגש/hover של gold-dark על רקע בהיר (champagne 8.5:1, sand 7.5:1, blush 6.9:1) */
+  --color-gold-antique: #A8893A; /* זהב עתיק — קווי מסגרת/מפרידים בלבד (לא טקסט על בהיר: 3.1:1 על champagne — עובר רק כגרפיקה ≥3:1) */
+
+  /* --- גווני משטח (surface tones) --- */
+  --color-ink-raised: #141310; /* משטח מוגבה מעל ink (מקטעים כהים משניים) */
+  --color-ink-elevated: #25221D; /* משטח כהה עליון (מסגרות/כרטיסים מעל charcoal) */
+  --color-porcelain: #FFFCF5; /* פורצלן — המשטח הבהיר ביותר (כרטיס על champagne) */
+  --color-sand: #F1E8D4; /* חול — רקע בהיר עמוק יותר להחלפת קצב/placeholder */
+  --color-blush: #EEDCD0; /* בלאש (גוון עור) — placeholder תמונות לפני/אחרי על בהיר; רק charcoal/gold-deep/taupe כטקסט עליו */
+
+  /* --- טקסט משני על כהה (מחליף שקיפויות champagne/70-80 בערך קבוע ובדוק) --- */
+  --color-champagne-muted: #B9AF9C; /* ink 9.1:1, charcoal 8.0:1, ink-elevated 7.3:1 */
+
+  /* --- קווי שיער (hairlines) — גרפיקה בלבד, לא טקסט --- */
+  --color-hairline-dark: color-mix(in oklab, var(--color-gold) 28%, transparent); /* על ink/charcoal */
+  --color-hairline-light: color-mix(in oklab, var(--color-gold-dark) 22%, transparent); /* על champagne/porcelain */
+
+  /* --- צבע מותג חיצוני (WhatsApp) — הוצא מ-hex קשיח ברכיב --- */
+  --color-whatsapp: #25D366;
+
+  /* --- גרדיאנטים --- */
+  /* "מוזהב" — לקווי שיער, מסגרות ורכיב חתימה אחד; לא כרקע לטקסט רץ */
+  --gradient-gilded: linear-gradient(
+    135deg,
+    var(--color-gold-light) 0%,
+    var(--color-gold) 45%,
+    var(--color-gold-antique) 100%
+  );
+  /* הילה חמה עדינה ל-Hero — רקע ink עם אור זהוב מוחלש במרכז-מעלה */
+  --gradient-ink-glow: radial-gradient(
+    120% 80% at 50% 0%,
+    color-mix(in oklab, var(--color-gold) 14%, var(--color-ink)) 0%,
+    var(--color-ink) 60%
+  );
+  /* משימה 2.14 — "הילת סגירה": תמונת-מראה של ink-glow, אור זהוב עולה מתחתית ה-Footer,
+   * כך שהדף נסגר באותו אור שבו נפתח (Hero). אותו ערבוב 14% — שיא ההילה ≈ rgb(33,30,19).
+   * ניגודיות בשיא (המקרה הגרוע): champagne 15.47, gold-pale 13.89, gold-light 11.41,
+   * champagne-muted 7.69, gold 7.63 — כולם ≥4.5:1. לא לטקסט כהה. */
+  --gradient-ink-glow-close: radial-gradient(
+    120% 90% at 50% 100%,
+    color-mix(in oklab, var(--color-gold) 14%, var(--color-ink)) 0%,
+    var(--color-ink) 62%
+  );
+  /* מעבר שמפניה→חול לרצועות בהירות */
+  --gradient-champagne-wash: linear-gradient(
+    180deg,
+    var(--color-champagne) 0%,
+    var(--color-sand) 100%
+  );
+  /* placeholder לתמונות: בהיר (blush→sand) וכהה (ink-elevated עם זוהר זהב) */
+  --gradient-placeholder-light: linear-gradient(160deg, var(--color-blush) 0%, var(--color-sand) 100%);
+  --gradient-placeholder-dark: radial-gradient(
+    90% 70% at 50% 20%,
+    color-mix(in oklab, var(--color-gold) 18%, var(--color-ink-elevated)) 0%,
+    var(--color-ink-elevated) 70%
+  );
+
+  /* משימה 2.20 — scrim לטקסט על תמונה (Hero). שכבות ink שקופות בלבד, ללא hex חדש.
+   * soft  = "רצפה" אחידה על כל התמונה — היא לבדה מבטיחה את הניגודיות בכל מקום שבו יש טקסט,
+   *         ללא תלות במיקום הטקסט (נייד/דסקטופ/RTL), כי היא אחידה.
+   * strong = ויניטה סימטרית (שוליים ותחתית) מעל ה-soft — עומק בלבד, רק מכהה עוד.
+   * מקרה גרוע (תמונה לבנה לגמרי מתחת, הרכבה ב-sRGB): ink 68% על white ≈ rgb(89,89,89):
+   *   champagne 6.48, gold-pale (h1) 5.82, white 7.00, gold (קו/גבול CTA) 3.20 — ≥4.5 לטקסט, ≥3 לגרפיקה.
+   *   בשולי הוויניטה: 1−(0.32×0.08) ≈ 97% ink — כהה עוד יותר. */
+  --scrim-ink-soft: color-mix(in oklab, var(--color-ink) 68%, transparent);
+  --scrim-ink-strong: color-mix(in oklab, var(--color-ink) 92%, transparent);
+  --gradient-scrim-hero:
+    linear-gradient(180deg, transparent 55%, var(--scrim-ink-strong) 100%),
+    radial-gradient(125% 95% at 50% 40%, transparent 45%, var(--scrim-ink-strong) 100%),
+    linear-gradient(var(--scrim-ink-soft), var(--scrim-ink-soft));
+
+  /* --- סקאלת טיפוגרפיה (נגזרת מהסולם הקלאסי של Bringhurst: 16·18·21·24·30·36·42·48·60·72) ---
+   * נייד (375px) → דסקטופ (1280px), clamp() לינארי. */
+  --type-display: clamp(2.625rem, 1.848rem + 3.315vw, 4.5rem); /* 42→72px — H1 בלבד */
+  --type-display-leading: 1.05;
+  --type-display-tracking: -0.01em;
+  --type-h2: clamp(1.875rem, 1.409rem + 1.989vw, 3rem); /* 30→48px */
+  --type-h2-leading: 1.15;
+  --type-h2-tracking: -0.005em;
+  --type-h3: clamp(1.3125rem, 1.235rem + 0.331vw, 1.5rem); /* 21→24px */
+  --type-h3-leading: 1.3;
+  --type-lead: clamp(1.125rem, 1.047rem + 0.331vw, 1.3125rem); /* 18→21px — משפט הבטחה/פתיח */
+  --type-lead-leading: 1.6;
+  --type-body: 1.0625rem; /* 17px — Assistant קטן-עין; ≥16px למניעת זום iOS */
+  --type-body-leading: 1.75;
+  --type-eyebrow: 0.9375rem; /* 15px — תווית הקשר, ללא אותיות רישיות/מתיחה רחבה */
+  --type-eyebrow-leading: 1.4;
+  --type-eyebrow-tracking: 0.02em;
+  --type-caption: 0.875rem; /* 14px — מטא-מידע (משך/מחיר/שם ממליצה) */
+  --type-caption-leading: 1.5;
+
+  /* --- אורכי שורה (measure) --- */
+  --measure-prose: 62ch; /* טקסט רץ: 60–75 תווים בדסקטופ */
+  --measure-heading: 18ch; /* כותרות: שבירה מאוזנת */
+
+  /* --- קצב ריווחים (spacing rhythm) בין סקשנים, על בסיס 8px --- */
+  --spacing-section: clamp(4.5rem, 3.21rem + 5.5vw, 8rem); /* 72→128px — ריפוד אנכי לכל סקשן */
+  --spacing-section-tight: clamp(3rem, 2.48rem + 2.2vw, 4.5rem); /* 48→72px — Footer/רצועות משניות */
+  --spacing-stack: clamp(2rem, 1.48rem + 2.2vw, 3.5rem); /* 32→56px — כותרת סקשן → תוכן */
+  --spacing-gutter: clamp(1.25rem, 0.73rem + 2.2vw, 3rem); /* 20→48px — ריפוד אופקי (logical inline) */
+  --spacing-grid: clamp(1.5rem, 1.24rem + 1.1vw, 2.5rem); /* 24→40px — gap בין פריטי גריד */
+  --container-landing: 72rem; /* 1152px — רוחב תוכן מקסימלי */
+
+  /* --- טיפול בתמונות --- */
+  --aspect-arch: 3 / 4; /* מסגרת קשת — מוטיב החתימה (מראת אטלייה) */
+  --aspect-portrait: 4 / 5; /* פורטרט צוות/לפני-אחרי */
+  --aspect-landscape: 3 / 2;
+  --radius-frame: 0.25rem; /* פינות תחתונות של מסגרת הקשת */
+  --frame-offset: 0.5rem; /* מרווח קו השיער החיצוני מהתמונה */
+
+  /* --- עומק ותנועה --- */
+  --shadow-lift: 0 24px 48px -28px color-mix(in oklab, var(--color-ink) 60%, transparent);
+  --shadow-glow: 0 0 0 1px var(--color-hairline-dark), 0 18px 40px -24px color-mix(in oklab, var(--color-gold) 35%, transparent);
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1); /* האטה בהגעה (ease-out-quint) */
+  --ease-exit: cubic-bezier(0.55, 0, 1, 0.45); /* האצה ביציאה */
+  --duration-quick: 180ms; /* hover/focus */
+  --duration-base: 320ms;
+  --duration-slow: 700ms; /* zoom תמונה */
+}
+
+@theme inline {
+  --color-gold: var(--color-gold);
+  --color-ink: var(--color-ink);
+  --color-champagne: var(--color-champagne);
+  --color-gold-dark: var(--color-gold-dark);
+  --color-gold-light: var(--color-gold-light);
+  --color-charcoal: var(--color-charcoal);
+  --color-taupe: var(--color-taupe);
+  --color-white: var(--color-white);
+
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+  --color-warning: var(--color-warning);
+  --color-success-light: var(--color-success-light);
+  --color-error-light: var(--color-error-light);
+
+  --radius-brand: var(--radius-brand);
+
+  --spacing-brand-xs: var(--spacing-brand-xs);
+  --spacing-brand-sm: var(--spacing-brand-sm);
+  --spacing-brand-md: var(--spacing-brand-md);
+  --spacing-brand-lg: var(--spacing-brand-lg);
+  --spacing-brand-xl: var(--spacing-brand-xl);
+  --spacing-brand-2xl: var(--spacing-brand-2xl);
+
+  /* משימה 2.11 — רשומות theme לטוקנים החדשים (bg-sand, text-gold-pale, text-display, py-section וכו') */
+  --color-gold-pale: var(--color-gold-pale);
+  --color-gold-deep: var(--color-gold-deep);
+  --color-gold-antique: var(--color-gold-antique);
+  --color-ink-raised: var(--color-ink-raised);
+  --color-ink-elevated: var(--color-ink-elevated);
+  --color-porcelain: var(--color-porcelain);
+  --color-sand: var(--color-sand);
+  --color-blush: var(--color-blush);
+  --color-champagne-muted: var(--color-champagne-muted);
+  --color-hairline-dark: var(--color-hairline-dark);
+  --color-hairline-light: var(--color-hairline-light);
+  --color-whatsapp: var(--color-whatsapp);
+
+  --text-display: var(--type-display);
+  --text-display--line-height: var(--type-display-leading);
+  --text-display--letter-spacing: var(--type-display-tracking);
+  --text-h2: var(--type-h2);
+  --text-h2--line-height: var(--type-h2-leading);
+  --text-h2--letter-spacing: var(--type-h2-tracking);
+  --text-h3: var(--type-h3);
+  --text-h3--line-height: var(--type-h3-leading);
+  --text-lead: var(--type-lead);
+  --text-lead--line-height: var(--type-lead-leading);
+  --text-body: var(--type-body);
+  --text-body--line-height: var(--type-body-leading);
+  --text-eyebrow: var(--type-eyebrow);
+  --text-eyebrow--line-height: var(--type-eyebrow-leading);
+  --text-eyebrow--letter-spacing: var(--type-eyebrow-tracking);
+  --text-caption: var(--type-caption);
+  --text-caption--line-height: var(--type-caption-leading);
+
+  --spacing-section: var(--spacing-section);
+  --spacing-section-tight: var(--spacing-section-tight);
+  --spacing-stack: var(--spacing-stack);
+  --spacing-gutter: var(--spacing-gutter);
+  --spacing-grid: var(--spacing-grid);
+  --container-landing: var(--container-landing);
+
+  --aspect-arch: var(--aspect-arch);
+  --aspect-portrait: var(--aspect-portrait);
+  --aspect-landscape: var(--aspect-landscape);
+  --radius-frame: var(--radius-frame);
+
+  --shadow-lift: var(--shadow-lift);
+  --shadow-glow: var(--shadow-glow);
+  --ease-luxe: var(--ease-luxe);
+  --ease-exit: var(--ease-exit);
+}
+
+/* ==================================================================
+ * משימה 2.11 — Utilities לגרדיאנטים, מידת שורה ומסגרות תמונה.
+ * כל הערכים מגיעים מהמשתנים למעלה; אין hex ברכיבים.
+ * כל המאפיינים סימטריים או logical — בטוחים ל-RTL.
+ * ================================================================== */
+@utility bg-gilded {
+  background-image: var(--gradient-gilded);
+}
+@utility bg-ink-glow {
+  background-color: var(--color-ink);
+  background-image: var(--gradient-ink-glow);
+}
+/* משימה 2.14 — רקע ה-Footer (סגירת הדף), מראה של bg-ink-glow */
+@utility bg-ink-glow-close {
+  background-color: var(--color-ink);
+  background-image: var(--gradient-ink-glow-close);
+}
+/* משימה 2.20 — שכבת ה-scrim מעל תמונת ה-Hero (ראו --gradient-scrim-hero) */
+@utility bg-scrim-hero {
+  background-image: var(--gradient-scrim-hero);
+}
+@utility bg-champagne-wash {
+  background-color: var(--color-champagne);
+  background-image: var(--gradient-champagne-wash);
+}
+@utility bg-placeholder-light {
+  background-image: var(--gradient-placeholder-light);
+}
+@utility bg-placeholder-dark {
+  background-image: var(--gradient-placeholder-dark);
+}
+@utility measure-prose {
+  max-inline-size: var(--measure-prose);
+}
+@utility measure-heading {
+  max-inline-size: var(--measure-heading);
+  text-wrap: balance;
+}
+/* קו שיער מוזהב קצר מתחת/מעל כותרת — מפריד בין כותרת לתוכן, לא קישוט חוזר */
+@utility rule-gilded {
+  display: block;
+  block-size: 1px;
+  inline-size: 4rem;
+  background-image: var(--gradient-gilded);
+}
+
+/* מסגרת קשת — מוטיב החתימה היחיד של הדף (לתמונות/placeholders בלבד).
+   הרדיוס העליון = חצי רוחב (50% אופקי; 37.5% אנכי = 50% רוחב ביחס 3:4). */
+@utility frame-arch {
+  position: relative;
+  aspect-ratio: var(--aspect-arch);
+  overflow: hidden;
+  border-radius: 50% 50% var(--radius-frame) var(--radius-frame) / 37.5% 37.5% var(--radius-frame) var(--radius-frame);
+  isolation: isolate;
+}
+/* קו שיער חיצוני העוקב אחרי צורת המסגרת (outline עם offset) */
+@utility frame-hairline-dark {
+  outline: 1px solid var(--color-hairline-dark);
+  outline-offset: var(--frame-offset);
+}
+@utility frame-hairline-light {
+  outline: 1px solid var(--color-hairline-light);
+  outline-offset: var(--frame-offset);
+}
+/* hover עדין: zoom 1.04 על התמונה בלבד (transform), מכבד prefers-reduced-motion */
+@utility frame-zoom {
+  & :where(img, [data-frame-media]) {
+    transition: transform var(--duration-slow) var(--ease-luxe);
+  }
+  &:hover :where(img, [data-frame-media]),
+  &:focus-within :where(img, [data-frame-media]) {
+    transform: scale(1.04);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & :where(img, [data-frame-media]) {
+      transition: none;
+    }
+    &:hover :where(img, [data-frame-media]),
+    &:focus-within :where(img, [data-frame-media]) {
+      transform: none;
+    }
+  }
+}
+
+/* משימה 2.22 — hover עדין לפריטי תפריט הטיפולים: קו gold-deep דק "נמתח" מהמרכז מעל קו השיער
+ * התחתון של הפריט. עיטור בלבד — הפריט אינו קישור/כפתור, ולכן אין שינוי סמן ואין שינוי צבע טקסט
+ * (כל צמדי הטקסט של 2.21 נשארים כמות שהם). gold-deep מול champagne/sand 8.50/7.52 (צמד שאומת ב-2.21).
+ * - scaleX מהמרכז (transform-origin סימטרי) — זהה ב-RTL וב-LTR, ללא מחלקות פיזיות.
+ * - רק במכשירים עם hover אמיתי (@media (hover: hover)) — אין "hover דביק" במגע.
+ * - אותו מצב ב-:focus-within למקרה שבעתיד יתווסף לפריט אלמנט ניתן למיקוד (כיום אין).
+ * - טוקני משך/easing מ-2.11; reduce/data-reduce-motion → המצב מתחלף מיד, ללא מעבר
+ *   (הכלל הגלובלי של [data-reduce-motion] למטה מכסה גם ::after). */
+@utility hover-gilded-line {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: -1px; /* בדיוק על border-b של הפריט */
+    block-size: 1px;
+    background-color: var(--color-gold-deep);
+    transform: scaleX(0);
+    transform-origin: 50% 50%;
+    transition: transform var(--duration-base) var(--ease-luxe);
+    pointer-events: none;
+  }
+  &:focus-within::after {
+    transform: scaleX(1);
+  }
+  @media (hover: hover) {
+    &:hover::after {
+      transform: scaleX(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      transition: none;
+    }
+  }
+}
+
+/* ==================================================================
+ * משימה 2.18 — תוסף הנגישות: התאמות המוחלות כמאפייני data-* על <html>
+ * (ראו lib/a11y/preferences.ts). מוגדרות כאן פעם אחת; הרכיבים לא משתנים.
+ * אין סקריפט צד שלישי — רק CSS + רכיב פנימי.
+ * ================================================================== */
+
+/* --- גודל טקסט: שינוי font-size של השורש — כל ה-rem (טיפוגרפיה, ריווחים, רכיבים)
+ *     גדלים יחד, כך שהפריסה נשארת פרופורציונלית. 130% מקסימום כדי שבנייד (360px)
+ *     לא תיווצר גלילה אופקית; overflow-wrap:anywhere מאפשר שבירת מילה ארוכה במקום גלישה. */
+html[data-a11y-text="-1"] { font-size: 90%; }
+html[data-a11y-text="1"] { font-size: 110%; }
+html[data-a11y-text="2"] { font-size: 120%; }
+html[data-a11y-text="3"] { font-size: 130%; }
+html[data-a11y-text] :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, label, a, button, blockquote, figcaption, legend) {
+  overflow-wrap: anywhere;
+}
+
+/* --- ניגודיות גבוהה: דריסת טוקנים בלבד (בתוך DNA המותג — זהב/שחור לילה/שמפניה).
+ * יחסי ניגודיות (WCAG, חושבו בנוסחת הבהירות היחסית):
+ *   על כהה:  white על ink 19.68, ink-raised 18.58, ink-elevated 15.85, charcoal 17.36
+ *            gold-pale (מחליף champagne-muted) על ink 16.38, ink-raised 15.46, ink-elevated 13.19, charcoal 14.45
+ *            gold על ink 9.00, ink-raised 8.50, ink-elevated 7.25, charcoal 7.94
+ *            gold-light על ink 13.45 · error-light על ink 7.12/ink-elevated 5.73 · success-light על ink 11.30
+ *            ink על gold 9.00 (כפתור brand), ink על gold-light 13.45, ink על whatsapp 9.92
+ *   על בהיר: charcoal (מחליף taupe) על white 17.36, sand 14.25, blush 13.05
+ *            gold-deep (מחליף gold-dark) על white 9.17, sand 7.52, blush 6.89
+ *            ink על white 19.68
+ *   גבולות (גרפיקה ≥3:1): gold (מחליף gold-antique/hairline-dark) על ink-elevated 7.25;
+ *            gold-deep (hairline-light/border/input של shadcn) על white 9.17.
+ * כל הצירופים ≥4.5:1 לטקסט. הרקעים: גרדיאנטי ההילה/שטיפה מבוטלים (רקע אחיד). */
+html[data-a11y-contrast="high"] {
+  --color-champagne: var(--color-white);
+  --color-porcelain: var(--color-white);
+  --color-champagne-muted: var(--color-gold-pale);
+  --color-taupe: var(--color-charcoal);
+  --color-gold-dark: var(--color-gold-deep);
+  --color-gold-antique: var(--color-gold);
+  --color-hairline-dark: var(--color-gold);
+  --color-hairline-light: var(--color-gold-deep);
+  --gradient-ink-glow: none;
+  --gradient-ink-glow-close: none;
+  --gradient-champagne-wash: none;
+  /* משתני shadcn (ממשק הניהול, רקע בהיר) */
+  --muted-foreground: var(--color-charcoal);
+  --border: var(--color-gold-deep);
+  --input: var(--color-gold-deep);
+  --ring: var(--color-gold-deep);
+}
+
+/* משימה 2.20 — ניגודיות גבוהה: תמונת ה-Hero והוויניטה מוסתרות, הרקע חוזר ל-ink אחיד
+ * (ההילה כבר מבוטלת למעלה). טקסט: white על ink 19.68, gold-pale על ink 16.38.
+ * כנ"ל במצב forced-colors של מערכת ההפעלה, שבו הדפדפן ממילא מסיר רקעים. */
+html[data-a11y-contrast="high"] :where([data-hero-image], [data-hero-scrim]) {
+  display: none;
+}
+@media (forced-colors: active) {
+  :where([data-hero-image], [data-hero-scrim]) {
+    display: none;
+  }
+}
+/* משימה 2.21 — ניגודיות גבוהה ברצועות ובתמונות החדשות: אין כלל נוסף.
+ * - רצועות בהירות: champagne/porcelain→white ו-champagne-wash→none (למעלה); sand נשאר.
+ *   charcoal על white 17.36 / sand 14.25; taupe→charcoal; gold-deep על white 9.17 / sand 7.52.
+ * - רצועות כהות (ink-raised): champagne-muted→gold-pale 15.46; gold-light 12.69; gold 8.50.
+ * - תמונות האווירה בסקשנים ([data-landing-image] שאינו ה-Hero) ומפריד הטקסטורה: אין עליהן טקסט,
+ *   ולכן אין scrim ואין צורך להסתיר אותן — הטקסט תמיד על רקע אחיד של הרצועה. */
+
+/* --- גווני אפור: על <html> ולא על <body> — filter על אלמנט השורש אינו יוצר containing block,
+ *     ולכן כפתורי position:fixed (WhatsApp, נגישות) נשארים צמודים ל-viewport. */
+html[data-a11y-grayscale="true"] {
+  filter: grayscale(1);
+}
+
+/* --- הדגשת קישורים: קו תחתון עבה ומובחן לכל קישור (גם כאלה שמעוצבים ככפתור). */
+html[data-a11y-links="true"] a[href] {
+  text-decoration-line: underline !important;
+  text-decoration-thickness: 0.125em !important;
+  text-underline-offset: 0.22em !important;
+  text-decoration-skip-ink: none;
+}
+
+/* --- גופן קריא: Assistant (הגופן הקיים לטקסט רץ) גם לכותרות — ללא הורדת גופן חדש;
+ *     ריווח אותיות/מילים מוגדל מעט (WCAG 1.4.12). דורס את --font-heading של next/font
+ *     (ספציפיות html[attr] גבוהה מזו של מחלקת המשתנה). */
+html[data-a11y-font="readable"] {
+  --font-heading: var(--font-body);
+  letter-spacing: 0.012em;
+  word-spacing: 0.08em;
+}
+
+/* --- סמן מוגדל (48px): חץ שחור לילה עם קו לבן; על אלמנטים אינטראקטיביים — חץ זהב.
+ *     שדות טקסט שומרים על סמן ה-I הרגיל. ערכי הצבע מוטמעים ב-SVG (אין דרך להעביר var ל-url). */
+html[data-a11y-cursor="large"],
+html[data-a11y-cursor="large"] * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M5 3v36l9.5-9.5 6 14.5 6.5-2.8-6-14.2H34z' fill='%230B0B0B' stroke='%23FFFFFF' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") 5 3, auto !important;
+}
+html[data-a11y-cursor="large"] :where(a[href], button:not(:disabled), [role="button"], label, select, summary),
+html[data-a11y-cursor="large"] :where(a[href], button:not(:disabled), [role="button"], label, select, summary) * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M5 3v36l9.5-9.5 6 14.5 6.5-2.8-6-14.2H34z' fill='%23D2AB2E' stroke='%230B0B0B' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E") 5 3, pointer !important;
+}
+html[data-a11y-cursor="large"] :where(input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"]), textarea) {
+  cursor: text !important;
+}
+
+/* --- עצירת אנימציות (שיקוף של כללי prefers-reduced-motion, תחת המאפיין של 2.16).
+ * חייב להיות בתוקף *לפני* ש-LandingMotion מבטל את ה-GSAP (mm.revert) — haltLandingMotion()
+ * מאלץ חישוב סגנון מיד אחרי הגדרת המאפיין, וה-revert רץ רק ב-microtask שאחריו. כך הסרת
+ * ה-opacity/transform ה-inline לא מתחילה CSS transition (למשל transition-all של Button). */
+html[data-reduce-motion]:not([data-reduce-motion="false"]) {
+  scroll-behavior: auto !important;
+}
+html[data-reduce-motion]:not([data-reduce-motion="false"]) *,
+html[data-reduce-motion]:not([data-reduce-motion="false"]) *::before,
+html[data-reduce-motion]:not([data-reduce-motion="false"]) *::after {
+  animation: none !important; /* כולל animate-spin ו-animate-in של tw-animate-css */
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+/* frame-zoom: ללא zoom ב-hover/focus (כמו ענף ה-reduce של ה-utility). */
+html[data-reduce-motion]:not([data-reduce-motion="false"]) .frame-zoom :where(img, [data-frame-media]) {
+  transform: none !important;
+}

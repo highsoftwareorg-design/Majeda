@@ -1,0 +1,291 @@
+// Prisma schema for MAJIDA Beauté Center
+// See docs/SRS.md and PLAN.md for domain context.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Minimal User model — groundwork for task 1.11 (Auth.js basic login).
+// `role` is not enforced yet; full role-based permissions are a future, separate scope (see SRS §11.1).
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  // Hashed password (bcrypt) — never store plaintext. Used by the Credentials
+  // provider in task 1.11 for a single demo/admin user.
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Treatment catalog — groundwork for task 1.12. Shared source of truth for
+// the landing page (task 2.3) and the calendar (domain 5), so both read the
+// same table instead of duplicated arrays. Only the minimal fields needed
+// now are included; richer fields (color, required consent form, allowed
+// therapists) belong to the later task 5.2.
+model Treatment {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  // Short description for display (e.g. landing page treatment cards, task 2.3).
+  // Optional/nullable so existing seeded rows aren't broken by this addition.
+  description        String?
+  // Duration of a single session, in minutes.
+  durationMinutes    Int
+  // Price in ILS (אג' מעוגל לשקלים שלמים לצורך פשטות בשלב זה).
+  price              Int
+  // Recommended time until the next visit, e.g. "4 שבועות" — kept as free
+  // text since recommendations vary in unit (days/weeks/months).
+  recommendedReturn  String?
+  // Numeric equivalent of recommendedReturn, in days — used to compute the
+  // suggested return date automatically after saving a visit (task 4.7, FR-PR-05).
+  // Null means no automatic suggestion for this treatment.
+  recommendedReturnDays Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  // Back-reference for Client.requestedTreatment (task 2.7 minimal model).
+  requestedByClients Client[]
+  // Back-reference for VisitTreatment join table (task 4.1).
+  visitTreatments    VisitTreatment[]
+  // Back-reference for Appointment (task 5.1).
+  appointments       Appointment[]
+}
+
+// Gender ("מין") — SRS §3/§12.1. Optional: not always known/provided
+// (e.g. a landing-page lead who only left a phone number).
+enum Gender {
+  female
+  male
+  other
+}
+
+// Marketing consent channel ("ערוץ ההסכמה") — SRS §11: consent must record
+// *how* and *when* it was given, not just a yes/no flag. Paired with
+// `marketingConsentAt` on Client (task 3.1). `none` means no consent given.
+enum MarketingConsentChannel {
+  none
+  landing_page
+  whatsapp
+  sms
+  email
+  in_person
+}
+
+// Soft-delete / archive status (FR-CL-01) — clients are never physically
+// deleted, only archived. See also `archivedAt` on Client for the audit
+// timestamp of when archiving happened.
+enum ClientStatus {
+  active
+  archived
+}
+
+// Full Client model (task 3.1, SRS §3 / §12.1). Supersedes the minimal
+// stub from task 2.7 (landing page contact form) — extended here rather
+// than creating a parallel model, per the note that used to live above
+// the old stub.
+//
+// Design notes (documented here per the coder's task instructions):
+// - `firstName`/`lastName` replace the old single `name` field (SRS asks
+//   for "שם פרטי ושם משפחה" explicitly). `lib/actions/contact.ts` (task 2.7)
+//   was updated to split the landing-page single "full name" field into
+//   these two on write.
+// - Tags use a proper `Tag`/`ClientTag` join table (not a raw string array)
+//   so tags can be queried/managed/renamed independently and reused across
+//   clients, per SRS §3 filter-by-tag (FR-CL-07) and bulk tag actions
+//   (FR-CL-10, tasks 3.9/3.12).
+// - Marketing consent is modeled as a channel + timestamp pair
+//   (`marketingConsentChannel` + `marketingConsentAt`), never a bare
+//   boolean, per SRS §11 (consent must record how and when it was given).
+// - Archive/soft-delete uses a `status` enum (`active`/`archived`) plus an
+//   `archivedAt` audit timestamp, consistent with how `ClientStatus` is
+//   defined above — records are never physically deleted (FR-CL-01).
+// - `source` stays a free-form string (e.g. "landing_page", "instagram",
+//   "direct") for flexibility across arrival channels (SRS §12.1), with
+//   UTM parameters captured as separate optional fields.
+model Client {
+  id                      String                  @id @default(cuid())
+  firstName               String
+  lastName                String
+  // Israeli phone number, required and unique — identifies a client across
+  // repeated landing-page submissions (task 2.7 acceptance test) and across
+  // the whole system (FR-CL-01/FR-CL-02).
+  phone                   String                  @unique
+  gender                  Gender?
+  birthDate               DateTime?
+  email                   String?
+  city                    String?
+  // Lead/arrival source — e.g. "landing_page", "instagram", "direct".
+  source                  String                  @default("direct")
+  // UTM parameters captured from the landing page / marketing links (§12.1).
+  utmSource               String?
+  utmMedium               String?
+  utmCampaign             String?
+  utmTerm                 String?
+  utmContent              String?
+  note                    String?
+  tags                    ClientTag[]
+  marketingConsentChannel MarketingConsentChannel @default(none)
+  marketingConsentAt      DateTime?
+  status                  ClientStatus            @default(active)
+  archivedAt              DateTime?
+  // Optional link to a requested treatment from the landing page form.
+  requestedTreatmentId    String?
+  requestedTreatment      Treatment?              @relation(fields: [requestedTreatmentId], references: [id])
+  // Medical alerts — task 4.3, §4.1 התראות רפואיות (FR-PR-01 partial).
+  // Free-text fields displayed prominently at the top of the client profile
+  // with a warning colour (#B26A00) whenever any field is non-empty.
+  // All nullable — existing clients have no data here until explicitly edited.
+  allergies               String?
+  medications             String?
+  pregnancyNursing        String?
+  medicalConditions       String?
+  // All recorded visits for this client (task 4.1).
+  visits                  Visit[]
+  // All appointments for this client (task 5.1).
+  appointments            Appointment[]
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+}
+
+// Tag catalog — reusable, named tags that can be attached to many clients
+// (SRS §12.1 "תגיות"; filtering FR-CL-07, bulk tagging FR-CL-10).
+model Tag {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  clients   ClientTag[]
+  createdAt DateTime    @default(now())
+}
+
+// Join table between Client and Tag (many-to-many).
+model ClientTag {
+  clientId  String
+  tagId     String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([clientId, tagId])
+}
+
+// Visit (ביקור) — task 4.1, SRS §12.1 Visit; basis for FR-PR-02 and later
+// tasks 4.4/4.5/4.9. A single visit by a client on a given date, with all
+// clinical and billing details recorded as free-form text fields (no structured
+// sub-tables yet — good enough for phase 1 / MVP).
+//
+// Treatments performed in a visit are linked via the VisitTreatment join table
+// (many visits ↔ many treatments), so a single visit can record multiple
+// treatments.
+//
+// All optional fields are nullable so that partial records (e.g. a visit logged
+// quickly without all details) don't fail validation.
+model Visit {
+  id              String           @id @default(cuid())
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId        String
+  visitDate       DateTime
+  // Name of the therapist who performed the treatment (free text — not yet a
+  // relation to User, to keep this simple in phase 1).
+  therapist       String?
+  // Body zone / treated area (e.g. "פנים", "גב עליון") — free text.
+  treatedArea     String?
+  // Free-text summary / clinical notes (FR-PR-02 "הערות").
+  notes           String?
+  // Client outcome / reaction to treatment — task 4.6, FR-PR-03 basic structured sub-field.
+  // Nullable; not required. Future: may expand to a full structured template per treatment type.
+  clientReaction  String?
+  // Session price in ILS (Decimal for future precision; phase 1 may store whole numbers).
+  price           Decimal?
+  // Materials and product batch numbers used in the session — free text.
+  products        String?
+  // Dosage, energy levels, or other device parameters — free text.
+  parameters      String?
+  // Suggested date for the client's next return visit (FR-AP-01 / task 4.9).
+  returnDate      DateTime?
+  // True once the return-date reminder has been acted on (rescheduled or dismissed).
+  returnNoteHandled Boolean       @default(false)
+  visitTreatments VisitTreatment[]
+  // Amendments recorded after the 24-hour lock window (task 4.8, FR-PR-07).
+  amendments      VisitAmendment[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+// VisitAmendment — רשומת תיקון לביקור נעול (task 4.8, FR-PR-07).
+// נוצרת כאשר מנסים לערוך שדה notes/clientReaction של ביקור שנשמר לפני יותר מ-24 שעות.
+// הסיכום המקורי לא נמחק — רק מתווספת רשומת תיקון עם הערך הישן, הערך החדש, שם המשתמש והתאריך.
+model VisitAmendment {
+  id        String   @id @default(cuid())
+  visitId   String
+  visit     Visit    @relation(fields: [visitId], references: [id])
+  // השדה שתוקן: "notes" או "clientReaction"
+  field     String
+  // הערך לפני התיקון (הסיכום המקורי / התיקון האחרון הקיים)
+  oldValue  String?
+  // הערך החדש שנרשם כתיקון
+  newValue  String?
+  // שם המשתמש שביצע את התיקון (אימייל מהסשן, או "system" כברירת מחדל)
+  editedBy  String
+  editedAt  DateTime @default(now())
+}
+
+// Join table between Visit and Treatment (many-to-many).
+// A visit may include multiple treatments; a treatment can appear in many visits.
+model VisitTreatment {
+  visitId     String
+  treatmentId String
+  visit       Visit     @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  treatment   Treatment @relation(fields: [treatmentId], references: [id], onDelete: Restrict)
+
+  @@id([visitId, treatmentId])
+}
+
+// AppointmentStatus — סטטוס תור (משימה 5.1, §12.1 Appointment, בסיס ל-FR-AP-04).
+enum AppointmentStatus {
+  SCHEDULED   // נקבע
+  CONFIRMED   // אושר
+  ARRIVED     // הגיע/ה
+  COMPLETED   // בוצע
+  CANCELLED   // בוטל
+  NO_SHOW     // לא הגיע/ה
+}
+
+// Appointment (תור) — משימה 5.1, SRS §12.1 Appointment; בסיס ל-FR-AP-04.
+// קישור ללקוח, לטיפול, מטפל/ת, חדר, שעת התחלה/סיום וסטטוס.
+// treatmentId הוא אופציונלי כדי לאפשר תיעוד תור גם לפני שהטיפול סוכם.
+model Appointment {
+  id          String            @id @default(cuid())
+  clientId    String
+  client      Client            @relation(fields: [clientId], references: [id])
+  treatmentId String?
+  treatment   Treatment?        @relation(fields: [treatmentId], references: [id])
+  // שם המטפל/ת — טקסט חופשי בשלב זה (לא קישור ל-User, כמו ב-Visit)
+  therapist   String
+  // חדר — אופציונלי
+  room        String?
+  // תאריך + שעת התחלה
+  startTime   DateTime
+  // תאריך + שעת סיום
+  endTime     DateTime
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+// Segment — פילטר שמור לשימוש חוזר (משימה 3.11, FR-CL-09, §12.1).
+// שומר את מצב כל הפילטרים של רשימת הלקוחות בפורמט JSON,
+// מוכן לשימוש עתידי בקמפיינים (§7) מבלי לשנות את מבנה הנתונים.
+model Segment {
+  id        String   @id @default(cuid())
+  // שם הסגמנט — ייחודי, מוגדר ע"י המשתמשת (לדוגמה: "לקוחות שלא חזרו 60+ יום")
+  name      String   @unique
+  // הגדרת הפילטר המלאה בפורמט JSON — תואמת לסטייט הפילטרים ב-ClientsListView
+  filters   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
