@@ -23,9 +23,6 @@ import {
  * לא נוסף בכוונה — פרופיל הלקוח (משימה 4.2) עדיין לא קיים, ושורת טבלה
  * "דוממת" נמנעת מהבטחת ניווט שלא עובד.
  */
-// Opts out of static prerendering (קורא מה-DB בכל בקשה).
-export const instant = false;
-
 export default async function ClientsPage() {
   // Signals to Next.js 16 that this route runs at request time (not prerendered).
   await connection();

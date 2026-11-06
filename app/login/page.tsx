@@ -7,9 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// Opts out of static prerendering (reads the session and searchParams) per Next.js cacheComponents.
-export const instant = false;
-
 export default async function LoginPage({
   searchParams,
 }: {

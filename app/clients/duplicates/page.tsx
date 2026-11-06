@@ -8,9 +8,6 @@ import {
 // עמוד איתור ומיזוג כפילויות (משימה 3.4, FR-CL-02). מוגן ע"י ה-middleware
 // הקיים (`/clients/:path*`, משימה 1.11). עמוד עצמאי — לא תלוי במסך רשימת
 // הלקוחות המלא (משימה 3.5+, עדיין לא קיים).
-// Opts out of static prerendering (קורא מה-DB בכל בקשה).
-export const instant = false;
-
 export default async function ClientDuplicatesPage() {
   const groups = await findDuplicateClientGroups();
 

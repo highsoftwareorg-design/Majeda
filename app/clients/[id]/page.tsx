@@ -20,9 +20,6 @@ import { NextReturnReminder } from "@/components/clients/NextReturnReminder";
 import { FilesBlock } from "@/components/clients/FilesBlock";
 import { ConsentFormsBlock } from "@/components/clients/ConsentFormsBlock";
 
-// Opts out of static prerendering — reads DB on every request (Next.js 16 cacheComponents API).
-export const instant = false;
-
 export default async function ClientProfilePage({
   params,
 }: {
