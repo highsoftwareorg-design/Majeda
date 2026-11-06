@@ -66,6 +66,10 @@ function makeTreatment(id: string, name: string) {
       price: 300,
       recommendedReturn: null,
       recommendedReturnDays: null,
+      // fields added in task 5.2 (FR-AP-02)
+      color: "#D2AB2E",
+      requiresConsentForm: false,
+      authorizedTherapists: null,
       createdAt: new Date("2026-01-01"),
       updatedAt: new Date("2026-01-01"),
     },

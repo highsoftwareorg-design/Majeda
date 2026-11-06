@@ -20,6 +20,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 250,
     recommendedReturn: "4 שבועות",
     recommendedReturnDays: 28,
+    color: "#D2AB2E",
+    requiresConsentForm: false,
+    authorizedTherapists: null,
   },
   {
     name: "טיפול פנים מתקדם (PLACEHOLDER)",
@@ -28,6 +31,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 400,
     recommendedReturn: "4 שבועות",
     recommendedReturnDays: 28,
+    color: "#7A5F10",
+    requiresConsentForm: false,
+    authorizedTherapists: null,
   },
   {
     name: "ניקוי פנים עמוק (PLACEHOLDER)",
@@ -36,6 +42,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 320,
     recommendedReturn: "6 שבועות",
     recommendedReturnDays: 42,
+    color: "#E9D58A",
+    requiresConsentForm: false,
+    authorizedTherapists: null,
   },
   {
     name: "טיפול אנטי אייג'ינג (PLACEHOLDER)",
@@ -44,6 +53,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 450,
     recommendedReturn: "3 שבועות",
     recommendedReturnDays: 21,
+    color: "#B26A00",
+    requiresConsentForm: true,
+    authorizedTherapists: null,
   },
   {
     name: "מיקרונידלינג (PLACEHOLDER)",
@@ -52,6 +64,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 500,
     recommendedReturn: "6 שבועות",
     recommendedReturnDays: 42,
+    color: "#6B5E4A",
+    requiresConsentForm: true,
+    authorizedTherapists: null,
   },
   {
     name: "פילינג כימי (PLACEHOLDER)",
@@ -60,6 +75,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 380,
     recommendedReturn: "4 שבועות",
     recommendedReturnDays: 28,
+    color: "#1C1A17",
+    requiresConsentForm: true,
+    authorizedTherapists: null,
   },
   {
     name: "עיסוי רקמות עמוק (PLACEHOLDER)",
@@ -68,6 +86,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 300,
     recommendedReturn: "2 שבועות",
     recommendedReturnDays: 14,
+    color: "#D2AB2E",
+    requiresConsentForm: false,
+    authorizedTherapists: null,
   },
   {
     name: "הסרת שיער בלייזר - אזור קטן (PLACEHOLDER)",
@@ -76,6 +97,9 @@ const PLACEHOLDER_TREATMENTS = [
     price: 180,
     recommendedReturn: "4 שבועות",
     recommendedReturnDays: 28,
+    color: "#7A5F10",
+    requiresConsentForm: false,
+    authorizedTherapists: null,
   },
 ];
 

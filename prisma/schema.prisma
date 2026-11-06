@@ -46,6 +46,19 @@ model Treatment {
   // suggested return date automatically after saving a visit (task 4.7, FR-PR-05).
   // Null means no automatic suggestion for this treatment.
   recommendedReturnDays Int?
+  // HEX color for rendering this treatment's appointments in the calendar view
+  // (task 5.2, FR-AP-02). Defaults to the MAJIDA gold brand color.
+  color              String?  @default("#D2AB2E")
+  // Whether this treatment type requires a signed consent form before proceeding
+  // (task 5.2, FR-AP-02). Stored here for reference — enforcement logic (blocking
+  // "COMPLETED" status without a form) is NOT implemented in phase 1; see Notes/Risks
+  // in PLAN.md re: consent forms (§8) being a future scope.
+  requiresConsentForm Boolean @default(false)
+  // Comma-separated names of therapists authorized to perform this treatment
+  // (task 5.2, FR-AP-02). Phase 1 simple approach — full therapist↔treatment
+  // relation table is planned for phase 3 (multi-branch, NFR-09).
+  // Example: "מג'ידה,שרה,נועה"
+  authorizedTherapists String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   // Back-reference for Client.requestedTreatment (task 2.7 minimal model).
@@ -258,23 +271,53 @@ enum AppointmentStatus {
 // קישור ללקוח, לטיפול, מטפל/ת, חדר, שעת התחלה/סיום וסטטוס.
 // treatmentId הוא אופציונלי כדי לאפשר תיעוד תור גם לפני שהטיפול סוכם.
 model Appointment {
-  id          String            @id @default(cuid())
-  clientId    String
-  client      Client            @relation(fields: [clientId], references: [id])
-  treatmentId String?
-  treatment   Treatment?        @relation(fields: [treatmentId], references: [id])
+  id            String                     @id @default(cuid())
+  clientId      String
+  client        Client                     @relation(fields: [clientId], references: [id])
+  treatmentId   String?
+  treatment     Treatment?                 @relation(fields: [treatmentId], references: [id])
   // שם המטפל/ת — טקסט חופשי בשלב זה (לא קישור ל-User, כמו ב-Visit)
-  therapist   String
+  therapist     String
   // חדר — אופציונלי
-  room        String?
+  room          String?
   // תאריך + שעת התחלה
-  startTime   DateTime
+  startTime     DateTime
   // תאריך + שעת סיום
-  endTime     DateTime
-  status      AppointmentStatus @default(SCHEDULED)
-  notes       String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  endTime       DateTime
+  status        AppointmentStatus          @default(SCHEDULED)
+  notes         String?
+  // היסטוריית שינויי סטטוס (משימה 5.8, FR-AP-04)
+  statusHistory AppointmentStatusHistory[]
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+}
+
+// AppointmentStatusHistory — רשומת שינוי סטטוס תור (משימה 5.8, FR-AP-04).
+// נוצרת בכל פעם שסטטוס התור משתנה דרך ה-API.
+// שומרת מאיזה סטטוס ולאיזה, מתי ועל-ידי מי — לצורך הצגת היסטוריה בכרטיס התור.
+model AppointmentStatusHistory {
+  id            String            @id @default(cuid())
+  appointmentId String
+  appointment   Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  fromStatus    AppointmentStatus
+  toStatus      AppointmentStatus
+  changedAt     DateTime          @default(now())
+  // שם המשתמש שביצע את השינוי — "system" כברירת מחדל בשלב זה
+  changedBy     String            @default("system")
+}
+
+// ClinicSettings — הגדרות גלובליות של המרפאה (משימה 5.7, FR-AP-05 חלק שעות פעילות).
+// מכיל שורה יחידה עם id="singleton" (upsert בכל שמירה).
+// openHour/closeHour: 0-23. break: אופציונלי.
+model ClinicSettings {
+  id             String   @id @default("singleton")
+  openHour       Int      @default(8)   // 0-23 — שעת פתיחה
+  closeHour      Int      @default(21)  // 0-23 — שעת סגירה
+  breakStartHour Int?                   // שעת תחילת הפסקה (אופציונלי)
+  breakStartMin  Int?     @default(0)   // דקות תחילת הפסקה
+  breakEndHour   Int?                   // שעת סיום הפסקה (אופציונלי)
+  breakEndMin    Int?     @default(0)   // דקות סיום הפסקה
+  updatedAt      DateTime @updatedAt
 }
 
 // Segment — פילטר שמור לשימוש חוזר (משימה 3.11, FR-CL-09, §12.1).
