@@ -26,6 +26,7 @@ vi.mock("@/lib/db/prisma", () => ({
       create: mockCreate,
       findUnique: mockFindUnique,
     },
+    followUp: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   },
 }));
 

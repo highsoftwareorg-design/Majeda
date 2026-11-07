@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { signOut } from "@/lib/auth/auth";
+import { auth, signOut } from "@/lib/auth/auth";
 import { Button } from "@/components/ui/button";
 import { listClients } from "@/lib/db/clients";
 import { prisma } from "@/lib/db/prisma";
@@ -28,7 +28,8 @@ export default async function ClientsPage() {
   await connection();
 
   // שליפה מקבילה: רשימת לקוחות + קטלוג טיפולים (3.6) + תגיות (3.9) + סגמנטים (3.11).
-  const [clients, treatmentsRaw, tagsRaw, segmentsRaw] = await Promise.all([
+  const [session, clients, treatmentsRaw, tagsRaw, segmentsRaw] = await Promise.all([
+    auth(),
     listClients(),
     prisma.treatment.findMany({
       select: { id: true, name: true, durationMinutes: true },
@@ -105,6 +106,7 @@ export default async function ClientsPage() {
           treatments={treatments}
           tags={tags}
           initialSegments={segments}
+          isAdmin={session?.user?.role === "admin"}
         />
       </div>
     </main>

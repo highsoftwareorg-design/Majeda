@@ -136,11 +136,14 @@ export function ClientsListView({
   treatments,
   tags,
   initialSegments = [],
+  isAdmin = false,
 }: {
   initialClients: ClientListItem[];
   treatments: TreatmentOption[];
   tags: TagOption[];
   initialSegments?: SegmentItem[];
+  /** ייצוא לקוחות זמין לאדמין בלבד (משימה 10.1). */
+  isAdmin?: boolean;
 }) {
   // ─── סטייט פילטרים בסיסיים ──────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -158,6 +161,7 @@ export function ClientsListView({
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exportMenuRef = useRef<HTMLDetailsElement | null>(null);
 
   // ─── סטייט סגמנטים שמורים (3.11) ────────────────────────────────────────
   const [segments, setSegments] = useState<SegmentItem[]>(initialSegments);
@@ -389,10 +393,10 @@ export function ClientsListView({
   }
 
   /**
-   * ייצוא CSV של כלל התוצאות המסוננות.
-   * // TODO: restrict to admin role — בדיקת תפקיד תמומש עם מימוש הרשאות מלא (SRS §11.1).
+   * כתובת ייצוא לפי הפילטרים הפעילים (משימה 10.1, FR-CL-10).
+   * מעתיק את פרמטרי הסינון של `buildUrl` ומוסיף `format=csv|xlsx`.
    */
-  function handleExportCsv(): void {
+  function buildExportUrl(format: "csv" | "xlsx"): string {
     const filterUrl = buildUrl(
       trimmedQuery,
       genderFilter,
@@ -400,11 +404,14 @@ export function ClientsListView({
       treatmentOperator,
       extra
     );
-    // מחליף את בסיס הנתיב מ-/api/clients ל-/api/clients/export
-    const qs = filterUrl.split("?")[1] ?? "";
-    const exportUrl = `/api/clients/export${qs ? `?${qs}` : ""}`;
-    // פתיחה בלשונית נוכחית — הדפדפן יטפל בהורדת הקובץ אוטומטית (Content-Disposition: attachment)
-    window.location.href = exportUrl;
+    const p = new URLSearchParams(filterUrl.split("?")[1] ?? "");
+    p.set("format", format);
+    return `/api/clients/export?${p.toString()}`;
+  }
+
+  /** סוגר את תפריט הייצוא לאחר בחירה. */
+  function closeExportMenu(): void {
+    exportMenuRef.current?.removeAttribute("open");
   }
 
   // ניקוי debounce בעת unmount.
@@ -519,12 +526,45 @@ export function ClientsListView({
           />
         </label>
 
-        <Link
-          href="/clients/duplicates"
-          className="text-sm font-medium text-gold-dark underline-offset-2 hover:underline"
-        >
-          איתור כפילויות
-        </Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link
+            href="/clients/duplicates"
+            className="text-sm font-medium text-gold-dark underline-offset-2 hover:underline"
+          >
+            איתור כפילויות
+          </Link>
+
+          {/* ייצוא לקוחות לפי הפילטר הפעיל — אדמין בלבד (משימה 10.1, FR-CL-10) */}
+          {isAdmin && (
+            <details ref={exportMenuRef} className="relative">
+              <summary
+                className={cn(
+                  "flex min-h-11 cursor-pointer list-none items-center rounded-lg border border-gold-antique/40 bg-porcelain px-4 text-sm font-medium text-charcoal",
+                  "transition-colors hover:bg-champagne",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark focus-visible:ring-offset-1"
+                )}
+              >
+                ייצוא
+              </summary>
+              <div className="absolute end-0 z-10 mt-1 flex w-44 flex-col gap-1 rounded-lg border border-gold-antique/40 bg-porcelain p-1 shadow-md">
+                <a
+                  href={buildExportUrl("csv")}
+                  onClick={closeExportMenu}
+                  className="flex min-h-11 items-center rounded-md px-3 text-sm text-charcoal hover:bg-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark"
+                >
+                  CSV
+                </a>
+                <a
+                  href={buildExportUrl("xlsx")}
+                  onClick={closeExportMenu}
+                  className="flex min-h-11 items-center rounded-md px-3 text-sm text-charcoal hover:bg-champagne focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark"
+                >
+                  Excel (XLSX)
+                </a>
+              </div>
+            </details>
+          )}
+        </div>
       </div>
 
       {/* ═══ סגמנטים שמורים — משימה 3.11 (FR-CL-09) ═══════════════════════ */}
@@ -1127,24 +1167,6 @@ export function ClientsListView({
               aria-expanded={showBulkTagPicker}
             >
               + הוסף תגית
-            </button>
-
-            {/* כפתור "ייצוא CSV" — אדמין בלבד (placeholder) */}
-            {/* TODO: restrict to admin role — בדיקת תפקיד תמומש בתחום הרשאות נפרד */}
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className={cn(
-                "min-h-11 rounded-lg border border-gold-antique/40 bg-porcelain px-4 text-sm font-medium text-charcoal",
-                "transition-colors hover:bg-champagne",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark focus-visible:ring-offset-1"
-              )}
-              title="ייצוא כל התוצאות המסוננות ל-CSV"
-            >
-              ייצוא CSV
-              <span className="me-1 ms-2 rounded bg-gold-dark/15 px-1.5 py-0.5 text-xs text-gold-dark">
-                אדמין בלבד
-              </span>
             </button>
 
             <button

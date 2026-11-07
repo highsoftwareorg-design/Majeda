@@ -14,6 +14,7 @@ import {
   checkAppointmentConflict,
 } from "@/lib/db/appointments";
 import { getClinicSettings } from "@/lib/db/clinicSettings";
+import { sendAppointmentConfirmation } from "@/lib/whatsapp/notifications";
 
 /**
  * GET /api/appointments?start=YYYY-MM-DD&end=YYYY-MM-DD
@@ -188,6 +189,10 @@ export async function POST(request: Request) {
       endTime,
       notes,
     });
+
+    // שליחת הודעת אישור WhatsApp — אסינכרונית, לא חוסמת את התגובה (FR-WA-01)
+    sendAppointmentConfirmation(appointment.id).catch(console.error);
+
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (err) {
     if (err instanceof Error) {

@@ -18,7 +18,10 @@ import { VisitTimeline } from "@/components/clients/VisitTimeline";
 import { VisitForm } from "@/components/clients/VisitForm";
 import { NextReturnReminder } from "@/components/clients/NextReturnReminder";
 import { FilesBlock } from "@/components/clients/FilesBlock";
-import { ConsentFormsBlock } from "@/components/clients/ConsentFormsBlock";
+import { ConsentList, ConsentMissingWarning } from "@/components/clients/ConsentList";
+import type { ConsentItem } from "@/components/clients/ConsentList";
+import { MessageTimeline } from "@/components/clients/MessageTimeline";
+import { prisma } from "@/lib/db/prisma";
 
 export default async function ClientProfilePage({
   params,
@@ -26,16 +29,87 @@ export default async function ClientProfilePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [client, visits, treatments] = await Promise.all([
+  const [client, visits, treatments, messages, rawConsents, upcomingAppointments] = await Promise.all([
     getClientById(id),
     getClientVisits(id),
     getTreatments(),
+    prisma.message.findMany({
+      where: { clientId: id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        channel: true,
+        templateId: true,
+        status: true,
+        sourceType: true,
+        sentAt: true,
+        createdAt: true,
+      },
+    }),
+    // טפסי הסכמה חתומים — task 7.9, FR-PR-08
+    prisma.signedConsent.findMany({
+      where: { clientId: id },
+      include: { template: { select: { name: true, validityDays: true } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    // תורים קרובים שמחייבים טופס הסכמה — task 7.9, FR-CF-09
+    prisma.appointment.findMany({
+      where: {
+        clientId: id,
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        treatment: { requiresConsentForm: true },
+      },
+      select: {
+        id: true,
+        treatment: { select: { name: true } },
+      },
+    }),
   ]);
 
   // 404 אם לא נמצא או בארכיון (ארכיון נחשב כ"לא זמין" לעיון ישיר)
   if (!client || client.status === "archived") {
     notFound();
   }
+
+  // חישוב סטטוס טפסי הסכמה — task 7.9, FR-PR-08
+  const now = new Date();
+  const consents: ConsentItem[] = rawConsents.map((c) => {
+    const expiresAt =
+      c.signedAt && c.template.validityDays
+        ? new Date(
+            c.signedAt.getTime() + c.template.validityDays * 24 * 60 * 60 * 1000
+          )
+        : null;
+
+    let status: ConsentItem['status'];
+    if (!c.signedAt) {
+      status = 'ממתין לחתימה';
+    } else if (expiresAt && expiresAt < now) {
+      status = 'פג תוקף';
+    } else {
+      status = 'בתוקף';
+    }
+
+    return {
+      id: c.id,
+      templateName: c.template.name,
+      templateVersion: c.templateVersion,
+      signedAt: c.signedAt?.toISOString() ?? null,
+      expiresAt: expiresAt?.toISOString() ?? null,
+      pdfStorageKey: c.pdfStorageKey,
+      status,
+    };
+  });
+
+  // בדיקה: אילו תורים מחייבים טופס הסכמה אך אין לקוח/ה טופס בתוקף — task 7.9, FR-CF-09
+  const hasValidConsent = consents.some((c) => c.status === 'בתוקף');
+  const missingConsentTreatmentNames: string[] = hasValidConsent
+    ? []
+    : upcomingAppointments
+        .map((a) => a.treatment?.name)
+        .filter((name): name is string => !!name)
+        // הסרת כפילויות
+        .filter((name, idx, arr) => arr.indexOf(name) === idx);
 
   return (
     <main
@@ -60,6 +134,13 @@ export default async function ClientProfilePage({
 
         {/* כותרת פרופיל */}
         <ClientProfileHeader client={client} />
+
+        {/* אזהרת טופס הסכמה חסר (task 7.9, FR-CF-09) */}
+        {missingConsentTreatmentNames.length > 0 && (
+          <div className="mt-4">
+            <ConsentMissingWarning treatmentNames={missingConsentTreatmentNames} />
+          </div>
+        )}
 
         {/* בלוק התראות רפואיות (משימה 4.3) — מוצג מיד מתחת לכותרת */}
         <div className="mt-4 space-y-3">
@@ -119,10 +200,35 @@ export default async function ClientProfilePage({
           <FilesBlock />
         </div>
 
-        {/* בלוק טפסי הסכמה — משימה 4.11, §4.1 FR-PR-08 (Phase future placeholder) */}
-        <div className="mt-4">
-          <ConsentFormsBlock />
-        </div>
+        {/* בלוק טפסי הסכמה — task 7.9, FR-PR-08 */}
+        <section aria-labelledby="consents-heading" className="mt-8">
+          <div className="rounded-brand border border-gold/20 bg-white p-4 sm:p-5">
+            <h2
+              id="consents-heading"
+              className="mb-4 text-base font-semibold text-charcoal"
+            >
+              טפסי הסכמה
+            </h2>
+            <ConsentList consents={consents} />
+          </div>
+        </section>
+
+        {/* יומן שליחה — משימה 6.7, FR-WA-06 */}
+        <section aria-labelledby="messages-heading" className="mt-8">
+          <h2
+            id="messages-heading"
+            className="text-lg font-semibold text-charcoal mb-4"
+          >
+            יומן הודעות
+          </h2>
+          <MessageTimeline
+            messages={messages.map((m) => ({
+              ...m,
+              sentAt: m.sentAt ? m.sentAt.toISOString() : null,
+              createdAt: m.createdAt.toISOString(),
+            }))}
+          />
+        </section>
       </div>
     </main>
   );

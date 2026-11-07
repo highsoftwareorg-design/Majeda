@@ -85,7 +85,7 @@ export async function createAppointment(data: CreateAppointmentData) {
     throw new Error("שעת ההתחלה חייבת להיות לפני שעת הסיום");
   }
 
-  return prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       clientId: data.clientId,
       treatmentId: data.treatmentId ?? null,
@@ -97,28 +97,114 @@ export async function createAppointment(data: CreateAppointmentData) {
     },
     include: appointmentInclude,
   });
+
+  // FR-FU-05 — מעקבים עתידיים ממתינים של הלקוח מסומנים כ-BOOKED (נקבע תור).
+  // מעקבים שתאריכם לפני תחילת התור אינם מושפעים.
+  await prisma.followUp.updateMany({
+    where: {
+      clientId: appointment.clientId,
+      status: "PENDING",
+      scheduledDate: { gte: appointment.startTime },
+    },
+    data: { status: "BOOKED" },
+  });
+
+  return appointment;
 }
 
 /**
- * מעדכן את סטטוס התור.
+ * בודק האם ללקוח קיים טופס הסכמה חתום ובתוקף (task 7.10, FR-CF-10).
  *
- * @param id     — מזהה התור
- * @param status — הסטטוס החדש
- * @returns      — התור המעודכן עם קשרים, או null אם לא נמצא
+ * "בתוקף" = signedAt לא null, ואם לתבנית יש validityDays —
+ * הטופס לא פג תוקף (signedAt + validityDays * 24h > now).
+ *
+ * @param clientId — מזהה הלקוח
+ */
+export async function checkClientHasValidConsent(clientId: string): Promise<boolean> {
+  const signedConsents = await prisma.signedConsent.findMany({
+    where: { clientId, signedAt: { not: null } },
+    select: { signedAt: true, template: { select: { validityDays: true } } },
+  });
+
+  const now = new Date();
+  return signedConsents.some((sc) => {
+    if (!sc.signedAt) return false;
+    if (!sc.template.validityDays) return true; // אין פג תוקף — תמיד בתוקף
+    const expiresAt = new Date(
+      sc.signedAt.getTime() + sc.template.validityDays * 24 * 60 * 60 * 1000
+    );
+    return expiresAt > now;
+  });
+}
+
+/** תוצאת updateAppointmentStatus — task 7.10, FR-CF-10 */
+export type UpdateStatusResult =
+  | { ok: true; appointment: AppointmentWithRelations }
+  | { ok: false; notFound: true }
+  | { ok: false; code: 'CONSENT_REQUIRED'; consentTemplateId?: string };
+
+/**
+ * מעדכן את סטטוס התור, עם בדיקת טופס הסכמה לפני COMPLETED (task 7.10, FR-CF-10).
+ *
+ * @param id              — מזהה התור
+ * @param status          — הסטטוס החדש
+ * @param overrideReason  — סיבת דריסה (admin override) — אופציונלי
+ * @param approvedBy      — שם האדמין שאישר את הדריסה — אופציונלי
+ * @returns               — תוצאה: ok=true עם התור המעודכן, או ok=false עם קוד שגיאה
  */
 export async function updateAppointmentStatus(
   id: string,
-  status: AppointmentStatus
-) {
+  status: AppointmentStatus,
+  overrideReason?: string,
+  approvedBy?: string
+): Promise<UpdateStatusResult> {
+  const existing = await prisma.appointment.findUnique({
+    where: { id },
+    include: { treatment: { select: { requiresConsentForm: true } } },
+  });
+
+  if (!existing) return { ok: false, notFound: true };
+
+  // חסימה רכה: COMPLETED + requiresConsentForm → בדיקת טופס בתוקף (FR-CF-10)
+  if (status === 'COMPLETED' && existing.treatment?.requiresConsentForm) {
+    const hasValid = await checkClientHasValidConsent(existing.clientId);
+
+    if (!hasValid && !overrideReason) {
+      // מחזיר את תבנית ההסכמה הפעילה הראשונה (לנוחות ה-UI)
+      const template = await prisma.consentTemplate.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+      });
+      return {
+        ok: false,
+        code: 'CONSENT_REQUIRED',
+        consentTemplateId: template?.id,
+      };
+    }
+
+    // דריסת אדמין — רשומת audit
+    if (overrideReason && approvedBy) {
+      await prisma.consentOverride.create({
+        data: {
+          appointmentId: id,
+          reason: overrideReason,
+          approvedBy,
+          approvedAt: new Date(),
+        },
+      });
+    }
+  }
+
   try {
-    return await prisma.appointment.update({
+    const appointment = await prisma.appointment.update({
       where: { id },
       data: { status },
       include: appointmentInclude,
     });
+    return { ok: true, appointment };
   } catch {
-    // P2025 — רשומה לא נמצאה
-    return null;
+    // P2025 — רשומה לא נמצאה (מקרה קצה)
+    return { ok: false, notFound: true };
   }
 }
 

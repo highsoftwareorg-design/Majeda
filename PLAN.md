@@ -448,3 +448,417 @@ MAJIDA Beauté Center — מערכת ניהול למרפאת יופי וטיפו
     - **בדיקות:** `components/landing/__tests__/LandingMotion.images.test.tsx` (6): שכבה פנימית בכל מכל; (א) תחת reduce ועם `data-reduce-motion` מראש — 0 ScrollTriggers חדשים; parallax על השכבה בלבד, clip על המכל, אין transform על ה-img, Hero מתחיל ב-scale 1; (ב) `haltLandingMotion()` בזמן ריצה — אין `transform`/`clip-path`/`will-change` inline על אף אלמנט תמונה ומספר ה-ScrollTriggers חוזר לבסיס; (ג) spy על `gsap.to/from/fromTo/set` ועל `Timeline.prototype` — אין `x`/`xPercent`.
     - **דפדפן (production, פורט 3232, Edge headless, הופסקו בסיום):** 360×780 ו-1280×800, גלילה בצעדים לאורך כל הדף: `scrollWidth == clientWidth` בכל צעד; השכבה מכסה תמיד את המכל (מרווח מינימלי 0, אף צד לא נחשף); clip נצפה באמצע חשיפה ו-ריק בסיום; אחרי `data-reduce-motion` — 0 סגנונות inline של תנועה, כל התמונות opacity 1/visible. hover: `::after` עובר מ-scaleX(0) ל-scaleX(1). הלוגו `scale 1.4`, h1 יחיד, `#booking` יחיד.
     - **פתוח (ל-tester/2.23):** FPS/jank בגלילה במכשיר חלש אמיתי; CLS בפועל (transform בלבד — לא אמור להשפיע).
+
+---
+
+### 6. תזכורות WhatsApp לתורים (SRS §5.2)
+
+> תשתית שליחת WhatsApp משותפת לכל סעיפי 6, 7, 8 ו-9. ניתנת לפיתוח ובדיקה ב**מצב מדומה (Mock)** ללא אישורי Meta אמיתיים — ראו Notes/Risks סעיף WhatsApp.
+
+- [x] 6.1 מודל `Message` בבסיס הנתונים ושכבת שירות WhatsApp (`lib/whatsapp/`).
+  - מכסה: FR-WA-06 (יומן שליחה), תשתית משותפת לכל 6–9.
+  - יישום:
+    - סכמת Prisma: מודל `Message` עם שדות: `id`, `clientId` (FK → Client), `channel` (`whatsapp`/`sms`/`email`), `templateId` (string — מזהה תבנית Meta), `content` (JSON — ערכי המשתנים שמולאו בתבנית), `direction` (`outbound`/`inbound`), `status` (enum: `PENDING`/`SENDING`/`SENT`/`DELIVERED`/`READ`/`FAILED`/`MOCK`), `externalId` (מזהה Meta), `sourceType` (enum: `appointment`/`follow_up`/`campaign`/`consent`), `sourceId` (מזהה הרשומה שיצרה את ההודעה), `errorCode`, `errorMessage`, `sentAt`, `deliveredAt`, `readAt`, `createdAt`.
+    - `lib/whatsapp/types.ts`: ממשק `WhatsAppService` עם מתודות `sendTemplate(to, templateName, variables, messageId)` ו-`parseWebhookEvent(body, signature)`.
+    - `lib/whatsapp/mock.ts`: מימוש Mock — שומר ב-`Message` עם `status=MOCK`, מדפיס ל-`console.info` את מה שהיה נשלח (כולל תוכן ההודעה מורכב).
+    - `lib/whatsapp/cloud-api.ts`: מימוש Cloud API של Meta — POST ל-`https://graph.facebook.com/v19.0/{phoneNumberId}/messages`, מחזיר `externalId`.
+    - `lib/whatsapp/index.ts`: מייצא את המימוש הפעיל לפי `process.env.WHATSAPP_MODE` (`"mock"` → mock, כל ערך אחר → Cloud API).
+    - משתני סביבה חדשים (לתוך `.env.example` ולא `.env.local`): `WHATSAPP_MODE=mock`, `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+  - בדיקה: הרצת `lib/whatsapp/mock.ts` ביחידה — שמירת `Message` עם status=MOCK ומידע מלא; `cloud-api.ts` בסביבת mock (חסום מרשת) — פקודת שליחה מדומה לא נכשלת (בדיקה עם MSW/nock).
+
+- [x] 6.2 לוגיקת שעות שקטות ושבת/חגים (`lib/whatsapp/quiet-hours.ts`).
+  - מכסה: FR-WA-07.
+  - יישום:
+    - פונקציה `isQuietHour(date, settings)`: מחזירה `true` אם השעה נמצאת מחוץ לחלון שליחה (ברירת מחדל 08:00–21:00 לפי `ClinicSettings`).
+    - פונקציה `isShabbat(date)`: שבת (שישי 18:00 — שבת צאת כוכבים ≈ 1h אחרי שקיעה), מחושב לפי `Asia/Jerusalem`.
+    - פונקציה `nextAllowedSendTime(date, settings)`: מחזיר את הרגע הבא שבו מותר לשלוח (תחילת היום הבא הכשיר).
+    - שימוש בספרייה `date-fns-tz` (כבר עשויה להיות קיימת; אם לא — להוסיף) לחישוב מדויק ב-`Asia/Jerusalem`.
+    - **חגים:** לא ממומש בשלב זה (מחוץל-MVP); TODO מסומן בקוד.
+  - בדיקה: טבלת בדיקות ביחידה — יום חול בשעה 10:00 (מותר), 22:00 (אסור), שישי 19:00 (שבת — אסור), מוצאי שבת 21:30 (אסור כי מחוץ לחלון); `nextAllowedSendTime` מחזיר את השבת הנכון.
+
+- [x] 6.3 שליחת הודעת אישור מיידית בעת קביעת תור (FR-WA-01).
+  - מכסה: FR-WA-01, BR-06.
+  - יישום:
+    - פונקציה `sendAppointmentConfirmation(appointmentId)` ב-`lib/whatsapp/notifications.ts`.
+    - שולף פרטי תור + לקוח + טיפול מה-DB, בונה את משתני התבנית (`{שם}`, `{תאריך}`, `{שעה}`, `{טיפול}`, `{מטפל/ת}`, `{כתובת}`) ושולח דרך `WhatsAppService`.
+    - קישור Waze: `https://waze.com/ul?q={CLINIC_ADDRESS}` (כתובת מ-`process.env.CLINIC_ADDRESS`).
+    - קריאה מ-`app/api/appointments/route.ts` (POST) — לאחר יצירת תור מוצלחת.
+    - אם מצב Mock — `Message` נשמר עם `status=MOCK`, שם התבנית, ופרטי התור.
+  - בדיקה: קריאת POST ל-`/api/appointments` ביחידה עם mock WhatsApp — רשומת `Message` נוצרת עם `sourceType=appointment` ו-`status=MOCK`; תוכן ה-`content` כולל את שם הלקוח, תאריך ושעה נכונים (פורמט `DD/MM/YYYY`, שעון 24h, `Asia/Jerusalem`).
+
+- [x] 6.4 Scheduler לתזכורות 24 שעות לפני תור — Vercel Cron (FR-WA-02).
+  - מכסה: FR-WA-02 (תזכורת 24h), NFR-03.
+  - יישום:
+    - `app/api/cron/reminders/route.ts` — GET handler מאובטח ב-`Authorization: Bearer {CRON_SECRET}`.
+    - מחפש תורים שמועדם הוא בין 23:50 ל-24:10 שעות מעכשיו, בסטטוס `SCHEDULED` או `CONFIRMED`, שטרם נשלחה להם תזכורת 24h (שדה `reminder24hSentAt` על `Appointment` — יש להוסיף לסכמה).
+    - לכל תור: בדיקת `isQuietHour`/`isShabbat`; אם מותר — שליחה דרך `WhatsAppService`; רישום `Message`; עדכון `reminder24hSentAt`.
+    - `vercel.json`: הוספת `{ "crons": [{ "path": "/api/cron/reminders", "schedule": "*/10 * * * *" }] }` (כל 10 דקות).
+    - משתנה סביבה: `CRON_SECRET` (מחרוזת סודית שמוגדרת גם בהגדרות Vercel).
+  - בדיקה: mock DB עם תור 24h קדימה — ה-cron handler יוצר רשומת `Message` עם `status=MOCK` ומעדכן `reminder24hSentAt`; תור שכבר נשלחה לו תזכורת — לא נשלח שוב.
+
+- [x] 6.5 Scheduler לתזכורת 3 שעות לפני תור (FR-WA-02).
+  - מכסה: FR-WA-02 (תזכורת 3h), NFR-03.
+  - יישום: אותו cron handler (6.4) — הוספת לולאה שנייה לתורים 2:50–3:10 שעות קדימה, שדה `reminder3hSentAt` על `Appointment`.
+  - בדיקה: תור 3h קדימה — `Message` נוצר עם `status=MOCK`; תור 24h קדימה שכבר קיבל תזכורת 3h — לא נשלח שוב.
+
+- [x] 6.6 Webhook לקבלת עדכוני סטטוס ותשובות מהירות מ-WhatsApp (FR-WA-03, FR-WA-06).
+  - מכסה: FR-WA-03, FR-WA-06.
+  - יישום:
+    - `app/api/whatsapp/webhook/route.ts` — GET לאימות webhook (Meta verification challenge), POST לקבלת אירועים.
+    - קבלת אירועי מסירה/קריאה (`status update`) → עדכון `Message.status`, `deliveredAt`, `readAt`.
+    - קבלת תשובה מהירה "מאשר/ת" → עדכון `Appointment.status` ל-`CONFIRMED` + יצירת `AppointmentStatusHistory`.
+    - קבלת תשובה מהירה "צריך/ה לשנות" → סימון `Appointment.notes` עם "לקוח/ה ביקש/ה שינוי — לטיפול קבלה".
+    - אימות חתימה HMAC-SHA256 מה-header `X-Hub-Signature-256` (מדולג במצב Mock בבדיקות).
+  - בדיקה: POST עם payload מדומה של "confirmed" → `Appointment.status=CONFIRMED` + `AppointmentStatusHistory` חדש; payload "delivered" → `Message.status=DELIVERED` + `deliveredAt` מוגדר.
+
+- [x] 6.7 תצוגת יומן שליחה בפרופיל הלקוח ובכרטיס תור (FR-WA-06).
+  - מכסה: FR-WA-06.
+  - יישום:
+    - API route `GET /api/clients/[id]/messages` — מחזיר רשימת הודעות ממוינות מהחדש לישן.
+    - רכיב `MessageTimeline` ב-`components/clients/` — מוצג בלשונית "הודעות" בפרופיל הלקוח; כל שורה: תאריך, סוג (תזכורת/מעקב/קמפיין), תבנית, סטטוס עם אייקון (נשלח/נמסר/נקרא/נכשל/מדומה).
+    - בכרטיס תור ביומן: תג קטן שמציג סטטוס תזכורת אחרונה (נשלח/נמסר/נכשל).
+  - בדיקה: mock עם 3 הודעות לאותו לקוח — `MessageTimeline` מרנדר 3 שורות בסדר כרונולוגי הפוך; סטטוס MOCK מוצג כ"מדומה (פיתוח)" ולא כ"נשלח"; axe ללא הפרות.
+
+- [x] 6.8 מסך ניהול תבניות WhatsApp (FR-WA-05) — פשוט (עריכת תוכן, ללא הגשה ל-Meta).
+  - מכסה: FR-WA-05.
+  - יישום:
+    - מודל `WhatsAppTemplate` בסכמת Prisma: `id`, `name` (ייחודי, מזהה Meta), `category` (`UTILITY`/`MARKETING`), `body` (טקסט עם placeholder `{שם}` וכו'), `variables` (JSON — רשימת שמות המשתנים), `approvedByMeta` (boolean), `language` (`he`/`ar`), `createdAt`, `updatedAt`.
+    - מסך `/admin/settings/templates` — רשימת תבניות + טופס עריכת `body` ו-`variables`; תצוגה מקדימה עם נתוני לקוח לדוגמה (FR-WA-05 תצוגה מקדימה).
+    - **הגשה ל-Meta:** כפתור "הגש לאישור Meta" שיוצר רשומת TODO ב-DB (ללא API call אמיתי — הגשה דרך Meta Business Manager נשארת ידנית בשלב זה).
+  - בדיקה: יצירת תבנית + שמירה → רשומה ב-DB; תצוגה מקדימה מחליפה `{שם}` בשם לדוגמה; עריכת `body` → `updatedAt` מתעדכן.
+
+---
+
+### 7. טפסי הסכמה וחתימה דיגיטלית (SRS §8)
+
+> חתימת PDF מחייבת שיקול של ספרייה שפועלת ב-Vercel Serverless (Node.js runtime ללא native binaries). הבחירה היא `pdf-lib` (pure TypeScript) — ראו Notes/Risks. שליחת OTP ב-SMS מחייבת ספק SMS ישראלי; במצב mock — OTP מוחזר ב-response body בסביבת dev בלבד.
+
+- [x] 7.1 מודלי נתונים לטפסי הסכמה בסכמת Prisma.
+  - מכסה: §12.1 ConsentTemplate, SignedConsent, FR-CF-01, FR-CF-03, FR-CF-07.
+  - יישום — מודלים חדשים:
+    - `ConsentTemplate`: `id`, `name`, `treatmentIds` (JSON — מערך מזהים), `isGeneral` (boolean — טופס כללי לכל לקוח חדש), `fields` (JSON — מערך אובייקטים של שאלות/תיבות סימון/חתימה), `validityDays` (Int? — תוקף בימים, null = ללא תוקף), `version` (Int, מתחיל ב-1), `previousVersionId` (String? — FK self-referential לגרסה קודמת), `language` (`he`/`ar`), `isActive` (boolean), `createdAt`, `updatedAt`.
+    - `SignedConsent`: `id`, `clientId` (FK), `appointmentId` (FK?), `templateId` (FK), `templateVersion` (Int), `fieldValues` (JSON — ערכי השדות שמולאו), `signatureClientData` (Text — נתוני canvas SVG/dataURL של חתימת הלקוח/ה), `signatureTherapistData` (Text? — חתימת המטפל/ת), `guardianName` (String? — לקטינים), `guardianIdNumber` (String? — ת.ז. אפוטרופוס), `signingToken` (String? unique — טוקן קישור חד-פעמי), `signingTokenExpiresAt` (DateTime?), `otpVerifiedPhone` (String? — הטלפון שאומת ב-OTP), `auditIp` (String?), `auditDevice` (String?), `auditHash` (String? — SHA-256 של המסמך הגמור), `pdfStorageKey` (String? — מפתח ב-Vercel Blob), `signedAt` (DateTime?), `createdAt`.
+    - מיגרציה מלאה עם `prisma migrate dev`.
+  - בדיקה: יצירת `ConsentTemplate` + `SignedConsent` מינימלי → שליפה עם קשרים תקינים.
+
+- [x] 7.2 עורך טפסי הסכמה (FR-CF-01) — מסך ניהול `/admin/consent-templates`.
+  - מכסה: FR-CF-01, FR-CF-02.
+  - יישום:
+    - רשימת תבניות קיימות + כפתור "צור תבנית חדשה".
+    - טופס עריכה: שם, שיוך לטיפולים (multi-select מתוך `Treatment`), `isGeneral`, `validityDays`, `language`, רשימת שדות דינמית (drag-to-reorder).
+    - סוגי שדות: `text` (תיבת טקסט), `boolean` (כן/לא), `checkbox` (חובה לסמן), `signature` (שדה חתימה).
+    - שמירה: POST `/api/consent-templates`.
+  - בדיקה: יצירת תבנית עם 3 שדות → שמירה ב-DB; עריכת שדה → `updatedAt` מתעדכן; מחיקת שדה → לא נשמר; axe ללא הפרות.
+
+- [x] 7.3 ניהול גרסאות טופס (FR-CF-03) — גרסה חדשה בעריכה, שמירת גרסה חתומה.
+  - מכסה: FR-CF-03.
+  - יישום:
+    - עריכת `ConsentTemplate` קיים: הטופס הישן מסומן `isActive=false`, נוצר רשומה חדשה עם `version+1` ו-`previousVersionId`.
+    - `SignedConsent` תמיד שומר את `templateVersion` שנחתם בה.
+    - API: PATCH `/api/consent-templates/[id]` מחזיר את המזהה של הגרסה החדשה.
+  - בדיקה: עריכת תבנית שכבר יש לה `SignedConsent` → גרסה ישנה נשארת `isActive=false`, חתימות ישנות מקושרות לגרסה הישנה, גרסה חדשה `isActive=true`; שליפת `SignedConsent` עם `templateVersion=1` מחזירה את גרסה 1.
+
+- [x] 7.4 יצירת קישור חתימה חד-פעמי ושליחתו ב-WhatsApp (FR-CF-06 חלק א').
+  - מכסה: FR-CF-06 (יצירת קישור + שליחת WhatsApp), FR-WA-04 (שילוב קישור בתזכורת).
+  - יישום:
+    - API: POST `/api/consent-tokens` — מקבל `clientId`, `templateId`, `appointmentId?`; יוצר `SignedConsent` עם `signingToken` (uuid v4), `signingTokenExpiresAt` (now+72h), `signedAt=null`; שולח הודעת WhatsApp דרך `WhatsAppService` עם הקישור `{NEXT_PUBLIC_APP_URL}/sign/{token}`.
+    - שילוב בתזכורת 24h (6.4): אם לתור מוגדר טיפול עם `requiresConsentForm=true` ואין `SignedConsent` בתוקף — מצרף קישור חתימה להודעת התזכורת.
+  - בדיקה: POST → `SignedConsent` עם token + expiry נוצר, `Message` עם status=MOCK; קישור חתימה מופיע ב-content ההודעה; קריאת POST שנייה לאותו `clientId+templateId+appointmentId` — מחזיר token קיים (לא כפול).
+
+- [x] <!-- skipped: OTP not needed; signing link token is sufficient per architecture decision --> 7.5 OTP לאימות זהות בעמוד החתימה (FR-CF-06 חלק ב').
+  - מכסה: FR-CF-06 (OTP), אבטחה §11.1.
+  - יישום:
+    - עמוד ציבורי `/sign/[token]/page.tsx` — SSR: מוודא שה-token קיים ולא פג, שולף את שם הלקוח ואת תבנית הטופס (ללא שדות רגישים).
+    - טופס קצר: "שלח קוד OTP לטלפון שלך" + כפתור → POST `/api/sign/[token]/otp`.
+    - POST `/api/sign/[token]/otp`: מייצר OTP ספרות 6 (`crypto.randomInt`), שומר hash בסשן (cookie מאובטח, TTL 10 דקות), שולח דרך SMS provider (במצב mock — מחזיר OTP ב-response body רק אם `NODE_ENV=development`).
+    - POST `/api/sign/[token]/verify-otp`: מוודא hash + גיל OTP; מסמן את הסשן כ"מאומת" (httpOnly cookie `consent_verified_<token>=1`).
+    - משתני סביבה: `SMS_PROVIDER_API_KEY`, `SMS_PROVIDER_SENDER_NAME` (ב-`.env.example`).
+  - בדיקה: OTP שגוי מחזיר 401; OTP נכון → cookie `consent_verified_<token>` מוגדר; OTP שפג (>10 דק') → 410.
+
+- [x] 7.6 טופס חתימה דיגיטלית — ממלא מראש + לחיצה על שדות (FR-CF-04, FR-CF-05).
+  - מכסה: FR-CF-04, FR-CF-05.
+  - יישום:
+    - אחרי אימות OTP, `/sign/[token]` מציג את שדות הטופס מלאים מראש (שם, תאריך, שם הטיפול) מפרטי הלקוח.
+    - כל שדה `checkbox` חובה: לא ניתן לחתום לפני שמסומן.
+    - רכיב `SignaturePad` (Client Component) — `<canvas>` עם אירועי touch/mouse לציור חתימה, כפתור "נקה", ייצוא כ-dataURL PNG.
+    - שדה `guardianName` + `guardianIdNumber` מוצגים אם גיל הלקוח/ה < 18 (לפי `birthDate`).
+    - כפתור "חתום" — מוגבל ל-`enabled` רק כאשר: OTP מאומת, כל checkboxes חובה מסומנים, חתימה על canvas לא ריקה.
+  - בדיקה: canvas מתרנדר ב-RTL; לחיצה על "חתום" ללא checkboxes — מוחסם; עם checkboxes + חתימה — מופעל; `SignaturePad.exportDataURL()` מחזיר מחרוזת dataURL תקינה.
+
+- [x] 7.7 שמירת חתימה, Audit trail ומניעת שימוש כפול בטוקן (FR-CF-07).
+  - מכסה: FR-CF-07, §11 אבטחה.
+  - יישום:
+    - POST `/api/sign/[token]/submit`: מקבל `fieldValues`, `signatureClientData`, `signatureTherapistData?`, `guardianName?`, `guardianIdNumber?`.
+    - אימות: cookie `consent_verified_<token>` קיים; `signedAt` עדיין null (לא נחתם כבר); הטוקן לא פג.
+    - שמירה: `fieldValues`, `signatureClientData`, `auditIp` (מ-`x-forwarded-for`), `auditDevice` (מ-`user-agent`), `otpVerifiedPhone`, `signedAt=now()`.
+    - `auditHash`: SHA-256 של `JSON.stringify({ fieldValues, signatureClientData, signedAt, otpVerifiedPhone })`.
+    - טוקן מסומן כ"שומש" — ניסיון חוזר עם אותו טוקן מחזיר 410.
+  - בדיקה: POST submit עם payload תקין → `SignedConsent.signedAt` מוגדר, `auditHash` לא null; POST שני עם אותו token → 410; POST עם cookie חסר → 401.
+
+- [x] 7.8 יצירת PDF נעול לאחר חתימה ושמירה באחסון (FR-CF-08).
+  - מכסה: FR-CF-08, BR-05.
+  - יישום:
+    - `lib/consent/pdf.ts`: פונקציה `generateConsentPdf(signedConsentId)` — משתמשת ב-`pdf-lib` לבניית PDF:
+      - לוגו המרפאה (מ-`public/brand/majida_logo.svg` → PNG inline, או ממדי וקטור ב-SVG).
+      - כותרת הטופס, שם לקוח/ה, תאריך חתימה, שדות ממולאים, חתימה (dataURL → תמונה מוטמעת), Audit trail (IP, מכשיר, hash).
+      - PDF מוצפן: `pdf.encrypt({ userPassword: '', ownerPassword: generateOwnerPw(signedConsentId), printing: 'highResolution', modifying: false })`.
+    - שמירה ב-Vercel Blob: `put('consents/{clientId}/{signedConsentId}.pdf', pdfBytes, { access: 'private' })` → שמירת `pdfStorageKey` ב-`SignedConsent`.
+    - POST submit (7.7) מפעיל `generateConsentPdf` לאחר השמירה (async, לא חוסם את התגובה).
+    - משתני סביבה: `BLOB_READ_WRITE_TOKEN` (Vercel Blob).
+  - בדיקה: הרצת `generateConsentPdf` עם `SignedConsent` מדומה → Buffer בגודל > 1KB ללא זריקת שגיאה; PDF מכיל את שם הלקוח ואת תאריך החתימה (ניתן לאמת בבדיקה על ה-bytes).
+
+- [x] 7.9 הצגת טפסי הסכמה חתומים בפרופיל הלקוח + אזהרה על חסר (FR-PR-08).
+  - מכסה: FR-PR-08, FR-CF-09.
+  - יישום:
+    - API: `GET /api/clients/[id]/consents` — רשימת `SignedConsent` עם `templateName`, `templateVersion`, `signedAt`, `pdfStorageKey`, `expiresAt` (מחושב מ-`signedAt + validityDays`).
+    - רכיב `ConsentList` ב-`components/clients/` — לשונית "טפסים" בפרופיל; כל שורה: שם טופס, גרסה, תאריך חתימה, סטטוס ("בתוקף"/"פג תוקף"/"חסר"), כפתור "הורד PDF" (URL חתום מ-Vercel Blob).
+    - אזהרה: אם לתור קיים שמוגדר לו `requiresConsentForm=true` ואין טופס בתוקף — פס אזהרה כתום בראש פרופיל הלקוח/ה.
+  - בדיקה: mock עם `SignedConsent` שפג תוקפו (validityDays=1, signedAt=יומיים קודם) → סטטוס "פג תוקף"; mock ללא `SignedConsent` לטיפול עם `requiresConsentForm=true` → אזהרה מוצגת; axe ללא הפרות.
+
+- [x] 7.10 חסימה רכה: לא ניתן לסמן "בוצע" ללא טופס בתוקף (FR-CF-10).
+  - מכסה: FR-CF-10.
+  - יישום:
+    - `lib/db/appointments.ts` — `updateAppointmentStatus`: לפני שינוי ל-`COMPLETED`, בדיקה האם `treatment.requiresConsentForm=true`; אם כן — שאילתה האם קיים `SignedConsent` בתוקף לאותו לקוח + תבנית רלוונטית.
+    - אם אין — מחזיר שגיאה `{ code: 'CONSENT_REQUIRED', consentTemplateId }`.
+    - בממשק הניהול (יומן + פרופיל): כאשר מתקבלת שגיאה `CONSENT_REQUIRED` — dialog שמסביר מה חסר, עם כפתורות "שלח קישור חתימה" (7.4) ו"דחה והמשך (אדמין)" (מחייב אימות אדמין + שדה סיבה חובה).
+    - "דחה והמשך": שמירת `ConsentOverride` (מודל פשוט: `appointmentId`, `reason`, `approvedBy`, `approvedAt`) + שינוי הסטטוס.
+  - בדיקה: PATCH `/api/appointments/[id]` עם `status=COMPLETED` לתור עם `requiresConsentForm=true` ואין טופס → 422 עם `code=CONSENT_REQUIRED`; עם override תקין → 200.
+
+---
+
+### 8. מעקבים אחרי טיפול (SRS §6)
+
+- [x] 8.1 מודלי נתונים למעקבים (FR-FU-01).
+  - מכסה: §12.1 FollowUp, FR-FU-01.
+  - יישום — מודלים חדשים בסכמת Prisma:
+    - `FollowUpRule`: `id`, `treatmentId` (FK → Treatment), `name` (תיאור: "בדיקת שלומות", "חידוש טיפול"), `offsetDays` (Int — ימי עיכוב מסיום הביקור), `recipientType` (enum: `client`/`admin`/`both`), `clientTemplateId` (String? — `WhatsAppTemplate.id`), `adminNote` (String? — נוסח המשימה לאדמין), `isActive` (boolean), `createdAt`, `updatedAt`.
+    - `FollowUp`: `id`, `visitId` (FK → Visit), `clientId` (FK → Client), `ruleId` (FK? → FollowUpRule — null אם נוצר ידנית), `scheduledDate` (DateTime), `status` (enum: `PENDING`/`SENT`/`CANCELLED`/`BOOKED`), `callResult` (enum?: `appointment_booked`/`no_answer`/`not_interested`/`callback`), `callNote` (String?), `callResultAt` (DateTime?), `messageId` (FK? → Message), `createdAt`, `updatedAt`.
+    - קשרים: `Visit` מקבל back-ref `followUps FollowUp[]`.
+  - בדיקה: מיגרציה רצה; יצירת `FollowUpRule` + `FollowUp` עם כל השדות → שליפה עם קשרים תקינים.
+
+- [x] 8.2 הגדרת כללי מעקב לכל טיפול (FR-FU-01) — ממשק ניהול.
+  - מכסה: FR-FU-01.
+  - יישום:
+    - לשונית "כללי מעקב" במסך עריכת טיפול (`/admin/treatments/[id]`).
+    - רשימת `FollowUpRule` לאותו טיפול עם כפתורות הוסף/ערוך/מחק.
+    - טופס כלל: שם, מרווח (ימים), נמען (לקוח/אדמין/שניהם), תבנית WhatsApp (select מ-`WhatsAppTemplate`), נוסח משימה לאדמין.
+  - בדיקה: הוספת 2 כללים לטיפול → שמירה ב-DB; מחיקת כלל → `isActive=false` (soft delete, לא מחיקה פיזית שתשבור `FollowUp` קיים).
+
+- [x] 8.3 יצירת `FollowUp` בסיום ביקור + אפשרות דריסה (FR-FU-02).
+  - מכסה: FR-FU-02, FR-PR-05 (חלק ה-returnDate).
+  - יישום:
+    - `lib/db/visits.ts` — `createVisit` ו-`updateVisit`: לאחר שמירת ביקור, שולף את `FollowUpRule` הפעילים לכל הטיפולים שבוצעו, מחשב `scheduledDate = visitDate + offsetDays`, יוצר רשומות `FollowUp` עם `status=PENDING`.
+    - בממשק סיום ביקור: פאנל "מעקבים מתוכננים" שמציג את הכללים שיוצרו, עם אפשרות לשנות את `scheduledDate` לכל מעקב, להוסיף מעקב ידני, או לבטל מעקב — לפני שמירה סופית.
+  - בדיקה: סיום ביקור עם טיפול שיש לו 2 כללי מעקב → 2 רשומות `FollowUp` עם תאריכים נכונים; ביקור עם טיפול שאין לו כלל → 0 רשומות; שינוי תאריך ידני בממשק → `scheduledDate` מתעדכן.
+
+- [x] 8.4 ביטול אוטומטי של מעקב עם קביעת תור (FR-FU-05).
+  - מכסה: FR-FU-05.
+  - יישום:
+    - `lib/db/appointments.ts` — `createAppointment`: לאחר שמירת תור חדש, מחפש `FollowUp` בסטטוס `PENDING` לאותו לקוח שמועדם לאחר `startTime` → מעדכן `status=BOOKED`.
+    - בממשק ביטול מעקב — הודעת מידע בלוג של ה-`FollowUp`: "בוטל אוטומטית — נקבע תור ל-{תאריך}".
+  - בדיקה: `FollowUp` עם `scheduledDate` עוד שבועיים; יצירת `Appointment` לאותו לקוח → `FollowUp.status=BOOKED`; `FollowUp` עם `scheduledDate` לפני תאריך התור — לא מבוטל.
+
+- [x] 8.5 Scheduler שולח הודעת WhatsApp ביום המעקב (FR-FU-03).
+  - מכסה: FR-FU-03, NFR-03.
+  - יישום:
+    - `app/api/cron/follow-ups/route.ts` — מאובטח ב-`CRON_SECRET`; מחפש `FollowUp` בסטטוס `PENDING` ש-`scheduledDate` ≤ now() ≤ scheduledDate+1h; בדיקת `isQuietHour`; שליחת הודעת WhatsApp דרך `WhatsAppService` עם כפתור "לקביעת תור"; עדכון `status=SENT` + `messageId`.
+    - `vercel.json`: הוספת cron `{ "path": "/api/cron/follow-ups", "schedule": "0 8 * * *" }` (פעם ביום ב-08:00).
+    - הודעה "שירות" בלבד (בדיקת שלומות) — לא דורשת הסכמה לדיוור; הודעה "שיווקית" (הזמנה לטיפול נוסף) — נשלחת רק ללקוח/ה עם `marketingConsentChannel != 'none'`.
+  - בדיקה: mock DB עם 2 מעקבים לאותו יום — 2 הודעות Mock נוצרות, `status=SENT`; מעקב ביום אחר — לא נשלח; לקוח/ה ללא הסכמה לדיוור + `recipientType=client` עם תבנית שיווקית → לא נשלח.
+
+- [x] 8.6 יצירת משימת "להתקשר היום" לאדמין (FR-FU-04) ומסך משימות.
+  - מכסה: FR-FU-04, FR-FU-06.
+  - יישום:
+    - אותו cron (8.5): אם `recipientType=admin` או `recipientType=both` — יוצר רשומת `AdminTask` (מודל פשוט: `id`, `followUpId`, `clientId`, `status`: `OPEN`/`DONE`/`SNOOZED`, `createdAt`).
+    - מסך `/admin/tasks` — רשימת משימות פתוחות ממוינות לפי תאריך: שם לקוח/ה, טלפון, טיפול אחרון, סיכום ביקור (excerpt), תאריך מעקב, כפתורי תוצאה.
+    - כפתורי תוצאה (FR-FU-06): "נקבע תור" / "לא ענתה" (נדחה ב-48h → `scheduledDate+2d`, חזרה לסטטוס PENDING) / "לא מעוניינת" / "לחזור בתאריך" (picker).
+    - בחירת תוצאה שומרת `callResult`, `callNote`, `callResultAt` ב-`FollowUp`.
+  - בדיקה: mock עם `FollowUp` ב-`status=SENT` → רשומת `AdminTask` נוצרת; לחיצה על "לא ענתה" → `FollowUp.scheduledDate` זז ב-+2 יום, status חוזר ל-`PENDING`, `AdminTask.status=DONE`.
+
+- [x] 8.7 התראה יומית לאדמין — מייל סיכום + badge במערכת (FR-FU-07).
+  - מכסה: FR-FU-07.
+  - יישום:
+    - אותו cron (8.5) — לאחר עיבוד כל המעקבים: אם נוצרו ≥1 `AdminTask` חדשות — שליחת מייל לאדמין (כתובת מ-`process.env.ADMIN_EMAIL`) דרך SendGrid/Resend עם: "X משימות מעקב לטיפול היום — לצפייה".
+    - במצב mock (`WHATSAPP_MODE=mock`) — גם המייל מדומה (console.info).
+    - משתנה סביבה: `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` (ב-`.env.example`).
+    - Header ניווט: badge מספרי על קישור "משימות" המציג את מספר `AdminTask` ב-status=OPEN.
+  - בדיקה: mock עם 3 `AdminTask` שנוצרו היום → `console.info` עם ה"מייל" כולל מספר המשימות; badge = 3.
+
+---
+
+### 9. קמפיינים ב-WhatsApp (SRS §7)
+
+- [x] 9.1 מודל `Campaign` בסכמת Prisma ודף רשימת קמפיינים.
+  - מכסה: §12.1 Campaign, FR-MK-01.
+  - יישום:
+    - `Campaign`: `id`, `name`, `segmentId` (FK → Segment), `templateId` (FK → WhatsAppTemplate), `mediaUrl` (String? — URL תמונה/וידאו), `linkButtonUrl` (String?), `linkButtonText` (String?), `status` (enum: `DRAFT`/`SCHEDULED`/`SENDING`/`SENT`/`CANCELLED`), `scheduledAt` (DateTime?), `sentAt` (DateTime?), `recipientCount` (Int?), `sentCount` (Int?), `deliveredCount` (Int?), `readCount` (Int?), `clickCount` (Int?), `unsubscribeCount` (Int?), `bookedCount` (Int?), `estimatedCostIls` (Decimal?), `createdAt`, `updatedAt`.
+    - קשר: `Campaign` → `Message[]` (messages ביחס: `sourceType=campaign`, `sourceId=campaign.id`).
+    - דף `/admin/campaigns` — רשימת קמפיינים עם סטטוס, תאריך, מספר נמענים, כפתורות "צור קמפיין" / "פרטים".
+  - בדיקה: מיגרציה; יצירת `Campaign` stub → שמירה ושליפה עם קשרים תקינים; דף הרשימה מרנדר ללא שגיאות; axe ללא הפרות.
+  - סטטוס: הושלם (coder). **סכמה:** מודל `Campaign` נוסף ל-`prisma/schema.prisma` לפי הבריף (ללא `clickCount` ו-ללא relation ל-`Message[]` — ראו Notes/Risks); back-relations `campaigns` ב-`Segment` וב-`WhatsAppTemplate` (מודל `Segment` כבר היה קיים מ-3.11 ולא נוצר מחדש). מיגרציה `20261107070246_add_campaign_model` הוחלה מול Neon. **API:** `GET/POST /api/campaigns`, `GET/PATCH/DELETE /api/campaigns/[id]` (DELETE = status=CANCELLED; PATCH רק ב-DRAFT/SCHEDULED; status לא ניתן לשינוי דרך PATCH); ולידציה ב-`lib/campaigns/validation.ts`. `GET /api/segments` כבר היה קיים (3.11). **UI:** `app/campaigns/page.tsx` (Server Component, טבלה + תגיות סטטוס צבעוניות מ-`lib/campaigns/status.ts`, כפתור "צור קמפיין חדש"); `/campaigns` נוסף ל-matcher של `middleware.ts`.
+
+- [x] 9.2 טופס יצירת קמפיין (FR-MK-01, FR-MK-07).
+  - מכסה: FR-MK-01, FR-MK-07.
+  - יישום:
+    - דף `/admin/campaigns/new` — multi-step:
+      - שלב 1: שם קמפיין + בחירת סגמנט (select מתוך `Segment` השמורים).
+      - שלב 2: בחירת תבנית שיווקית (select מתוך `WhatsAppTemplate` עם `category=MARKETING`), תמונה/וידאו (URL), כפתור קישור.
+      - שלב 3: תזמון — "שלח עכשיו" / "שלח ב-{picker}".
+    - שמירה: POST `/api/campaigns` → `status=DRAFT`.
+    - הערכת עלות (FR-MK-07): מספר הנמענים (מ-9.4) × תעריף פר הודעה (מ-`process.env.WHATSAPP_COST_PER_MESSAGE_ILS`, ברירת מחדל 0.37 ₪).
+  - בדיקה: מילוי 3 שלבים + שמירה → `Campaign` ב-DB עם `status=DRAFT`; `estimatedCostIls` = מספר_נמענים × תעריף.
+  - סטטוס: הושלם (coder). **UI:** `app/campaigns/new/page.tsx` (server wrapper שקורא `WHATSAPP_COST_PER_MESSAGE_ILS` ומעביר לקומפוננטה) + `components/campaigns/CampaignForm.tsx` (Client Component, 3 שלבים ברינדור מותנה; תבניות מ-`GET /api/whatsapp/templates?category=MARKETING` — הפרמטר `category` נוסף ל-route הקיים; סגמנטים מ-`GET /api/segments`). שלב 3: "שלח עכשיו" / "שלח בתאריך" + סיכום; "שמור כטיוטה" → `POST /api/campaigns` (status=DRAFT, scheduledAt נשמר אם נבחר). **עלות:** `estimateCostIls(recipientCount, rate)` — מוצג רק כש-recipientCount ידוע; כרגע (לפני 9.4) מוצגת הודעה "ממתין לחישוב נמענים" ולא מספר. `.env.example` עודכן עם `WHATSAPP_COST_PER_MESSAGE_ILS=0.37`. `npx tsc --noEmit` עובר.
+
+- [x] 9.3 תצוגה מקדימה ושליחת בדיקה למספר האדמין (FR-MK-02).
+  - מכסה: FR-MK-02.
+  - יישום:
+    - רכיב `CampaignPreview` — מציג את גוף ההודעה עם ערכי נמען לדוגמה (הלקוח/ה הראשון/ה בסגמנט, או שם + מספר placeholder).
+    - כפתור "שלח בדיקה": POST `/api/campaigns/[id]/test` → שולח הודעה לטלפון `process.env.ADMIN_PHONE` דרך `WhatsAppService` (במצב mock — message עם status=MOCK).
+  - בדיקה: POST test → `Message` עם `status=MOCK`, `sourceType=campaign`, לטלפון האדמין; תצוגה מקדימה מחליפה `{שם}` בשם הנמען לדוגמה.
+
+- [x] 9.4 ספירת נמענים לפני שליחה (FR-MK-03).
+  - מכסה: FR-MK-03.
+  - יישום:
+    - API: GET `/api/campaigns/[id]/recipients/count` — שולף את הסגמנט (`filters` JSON), מריץ את שאילתת הפילטר מול `Client`, מסנן: `marketingConsentChannel != 'none'` + `status=active` + טלפון תקין (לא null).
+    - מחזיר: `{ total: N, withConsent: M, excluded: { noConsent: X, archived: Y } }`.
+    - מוצג בדף הסקירה לפני שליחה (שלב 3 של 9.2 ו-modal האישור של 9.5).
+  - בדיקה: סגמנט עם 10 לקוחות ש-3 ללא הסכמה → `withConsent=7`; סגמנט ריק → `total=0`.
+
+- [x] 9.5 שליחת קמפיין — מיידית או מתוזמנת, עם throttling (FR-MK-04, FR-MK-05).
+  - מכסה: FR-MK-04, FR-MK-05.
+  - יישום:
+    - POST `/api/campaigns/[id]/send`: אם `scheduledAt` בעתיד — `status=SCHEDULED`; אם מיידית — `status=SENDING`.
+    - Cron `app/api/cron/campaigns/route.ts` (כל 5 דקות): מחפש קמפיינים ב-`SCHEDULED` שמועדם עבר, ו-`SENDING` שלא הסתיימו.
+    - לכל קמפיין: טוען נמענים לפי הסגמנט (עם הסינונים של 9.4); שולח ב-batch של 10 הודעות עם `await sleep(1000)` בין batches (throttling בסיסי — 10 הודעות/שנייה).
+    - בכל הודעה: `{שם}` → שם הלקוח/ה; מצרף כפתור "הסרה" עם הוראה: "שלח/י STOP להסרה".
+    - Webhook (6.6): קבלת "STOP" / "הסר" → `Client.marketingConsentChannel=none` + `Client.marketingConsentAt=now()`.
+    - עדכון `Campaign.sentCount` בסיום.
+  - בדיקה: mock עם סגמנט של 5 לקוחות + מצב mock → 5 הודעות `MOCK` + `Campaign.sentCount=5` + `Campaign.status=SENT`; לקוח/ה ב-status=ARCHIVED → לא מקבל/ת הודעה.
+
+- [x] 9.6 דוח קמפיין (FR-MK-06).
+  - מכסה: FR-MK-06.
+  - יישום:
+    - API: GET `/api/campaigns/[id]/report` — מצרף `Message[]` לקמפיין, מחשב: sent/delivered/read/failed/unsubscribed.
+    - `bookedCount`: ספירת `Appointment` שנוצרו לאחר `Campaign.sentAt` בתוך 14 יום לנמענים ששלחו להם הודעה (join דרך `clientId` + `createdAt` בטווח).
+    - דף `/admin/campaigns/[id]` — פאנל מדדים: מספרים + אחוזים; טבלת `Message[]` עם סטטוס לכל נמען.
+  - בדיקה: mock עם 3 הודעות (2 DELIVERED, 1 FAILED) + appointment אחד לנמען בתוך 14 יום → `deliveredCount=2`, `failedCount=1`, `bookedCount=1`.
+
+---
+
+### 10. דוחות וייצוא בסיסיים (SRS §3, §6.2)
+
+- [x] 10.1 ייצוא רשימת לקוחות ל-CSV/Excel לפי פילטר פעיל (FR-CL-10).
+  - מכסה: FR-CL-10 (ייצוא — אדמין בלבד).
+  - יישום:
+    - API: GET `/api/clients/export?format=csv|xlsx&{filter params}` — מריץ את שאילתת הפילטר הקיימת (מ-domain 3) ללא pagination, מחזיר קובץ.
+    - CSV: `Content-Type: text/csv; charset=utf-8`, BOM לנוחות Excel עברית.
+    - XLSX: ספריית `exceljs` (pure JS, תואמת Vercel Serverless) — גיליון אחד עם header row בעברית + נתוני לקוחות.
+    - שדות: שם פרטי, שם משפחה, טלפון, מין, ת. לידה, עיר, מקור הגעה, תגיות (פסיק-מופרדות), ביקור אחרון, מספר ביקורים כולל, הסכמה לדיוור, סטטוס.
+    - כפתור "ייצוא" ברשימת הלקוחות — גלוי רק לאדמין (`session.user.role === 'admin'`).
+    - **פרטיות:** הקובץ לא נשמר בשרת, מוחזר ישירות ב-streaming response.
+  - בדיקה: GET עם פילטר "מקור=landing_page" ו-3 לקוחות תואמים → CSV עם BOM + 3 שורות נתונים; XLSX תקין (נפתח בלי שגיאה עם `exceljs.load(buffer)`).
+
+- [x] 10.2 ייצוא סיכום תורים לתקופה ל-CSV.
+  - מכסה: דרישה עסקית בסיסית (אין FR מספרי ספציפי — נגזר מ-FR-AP-01 ומ-§10.1).
+  - יישום:
+    - API: GET `/api/appointments/export?start=YYYY-MM-DD&end=YYYY-MM-DD&therapist=&status=` → CSV.
+    - שדות: תאריך, שעה, שם לקוח/ה, טלפון, טיפול, מטפל/ת, חדר, סטטוס, מחיר (מה-`Treatment`).
+    - כפתור "ייצוא תקופה" ביומן עם date picker (טווח).
+    - אדמין בלבד (middleware check).
+  - בדיקה: GET עם range שמכיל 2 תורים → CSV עם 2 שורות נתונים ו-header נכון; range ריק → CSV עם header בלבד.
+
+---
+
+## Notes/Risks — הוספות לסעיפים 6–10
+
+- **משימה 8.4 (coder):** המימוש הוא ב-`createAppointment` בלבד (`lib/db/appointments.ts`), כך ש-`POST /api/appointments` מכוסה דרכו. הפעולה מעדכנת את המעקבים ל-`status=BOOKED` (לפי הסעיף הטכני, לא `CANCELLED`). החלק של "הודעת מידע בלוג בממשק ביטול מעקב" ("בוטל אוטומטית — נקבע תור ל-{תאריך}") לא מומש כחלק מהמשימה המצומצמת — נדרש משימה נפרדת או הרחבה של UI המעקבים. העדכון אינו עטוף בטרנזקציה עם יצירת התור.
+
+- **WhatsApp — ארכיטקטורת Mock/Real:**
+  - כל קריאה ל-WhatsApp עוברת דרך ממשק `WhatsAppService` ב-`lib/whatsapp/index.ts`. הגדרת `WHATSAPP_MODE=mock` ב-`.env.local` מפעילה את mock שמדמה שליחה ושומר `Message` עם `status=MOCK` ב-DB — ניתן לפתח ולבדוק ללא אישורי Meta אמיתיים.
+  - **מצב אמיתי:** דורש חשבון Meta Business + WhatsApp Business Account (WABA) + אישור תבניות על ידי Meta (תהליך שלוקח 1-7 ימים). Webhook מחייב כתובת HTTPS ציבורית (Vercel Preview URL מספיק לבדיקה ראשונית).
+  - **שאלה פתוחה מ-SRS §13.2:** האם מתחברים ישירות ל-WhatsApp Cloud API (Meta) או דרך BSP ישראלי (כגון 360dialog, Infobip, MessageBird)? BSP מאפשר קבלת webhook ישירה, תמיכה בעברית ולעיתים תשלום נוח. יש לאשר לפני יישום 6.1 מלא.
+  - **תבניות Meta:** כל הודעה יזומה (Outbound) חייבת תבנית מאושרת (Utility או Marketing). לשם המשך פיתוח ב-Mock ניתן לנסח את תוכן התבניות ולשמור ב-`WhatsAppTemplate`, אך לא ניתן לשלוח בפועל עד לאישור Meta.
+  - **עלויות:** Meta גובה לפי conversation (24h window). תזכורת + אישור = Utility conversation אחד. קמפיין = Marketing conversation לכל נמען. ייש לעדכן את `WHATSAPP_COST_PER_MESSAGE_ILS` לפי המחירון העדכני.
+
+- **SMS Provider לאימות OTP (סעיף 7.5):**
+  - SRS §12.2 מציין "ספק SMS ישראלי" (חלופה לWhatsApp שנכשל + OTP). בשלב הפיתוח: mock מחזיר OTP ב-response רק ב-`NODE_ENV=development`. בפרודקשן: יש לבחור ספק (Inforu, Nexmo/Vonage, D-Fax וכו') ולהגדיר את הקרדנשיאלים. **שאלה פתוחה:** איזה ספק SMS נבחר?
+
+- **יצירת PDF (סעיף 7.8) — בחירת ספרייה:**
+  - `pdf-lib` נבחרה: pure TypeScript, ללא native bindings, תואמת Vercel Serverless Node.js. חלופות שנשקלו ונדחו: `puppeteer` (heavy, דורש Chrome binary שלא זמין ב-Vercel Serverless), `@react-pdf/renderer` (מורכב יותר, דורש renderer מיוחד). אם הדרישות ל-PDF מורכבות יותר (טבלאות מתקדמות, RTL מלא עם niqqud) — ייתכן שיצטרכו לעבור ל-Vercel Edge Functions עם puppeteer בהמשך.
+  - **RTL ב-PDF:** `pdf-lib` תומכת בטקסט עברית אך לא ב-RTL auto-layout. יש להגדיר alignment ימין מפורשות ולוודא שגופן תומך עברית (להטמיע TTF של "Assistant" ב-PDF).
+
+- **Vercel Cron Jobs (סעיפים 6.4, 6.5, 8.5, 9.5):**
+  - Vercel Cron זמין בחבילת Pro ומעלה (לא ב-Hobby). בחבילת Hobby יש Cron בסיסי עם מינימום 1 cron לתוכנית. **שאלה פתוחה:** מה חבילת ה-Vercel של המרפאה? אם Hobby — יש להגדיר כל ה-crons לשעה קבועה אחת (08:00) ולאחד לוגיקות.
+  - אלטרנטיבה ל-Hobby: Vercel Functions + חיצוני (Upstash Scheduler, cron-job.org) → לא מומלץ, מוסיף תלות.
+
+- **Vercel Blob לאחסון PDF (סעיף 7.8):**
+  - Vercel Blob (`@vercel/blob`) תומך ב-`access: 'private'` עם signed URLs (TTL). מחייב הוספת `BLOB_READ_WRITE_TOKEN` מ-Vercel dashboard. בסביבת פיתוח מקומי — mock (שמירה ל-`/tmp/` או לוג).
+
+- **חגים ושבתות (סעיף 6.2):**
+  - חישוב שבת ממומש. **חגים יהודיים:** לא ממומשים ב-MVP. אפשרות עתידית: API ציבורי כמו Hebcal (https://www.hebcal.com/hebcal/), או רשימת תאריכים שנתית ב-ClinicSettings. יש לסמן TODO בקוד.
+
+- **הסכמה לדיוור ושיווק (SRS §11.3):**
+  - כל הודעה שיווקית (קמפיין, "מתגעגעים") — נשלחת רק ללקוח/ה עם `marketingConsentChannel != 'none'`. הסרה (STOP/הסר) → עדכון מיידי ב-DB ב-webhook (6.6). תיעוד ההסרה (מתי, מאיזה ערוץ) — `marketingConsentChannel=none`, `marketingConsentAt=now()`.
+
+- **הרשאות אדמין לייצוא ולשליחת קמפיין:**
+  - סעיפים 9 ו-10 מחייבים תפקיד אדמין. Auth.js הנוכחי (1.11) כולל `role` בשדה ה-User אך אינו אוכף הרשאות לפי תפקיד. ב-MVP — ניתן לבדוק `session.user.role === 'admin'` ב-Server Actions/API routes, ובממשק להסתיר את הפקדים. הגנה מלאה (RBAC) תתוכנן בתחום נפרד (ראו הערה קיימת בסעיף "הרשאות ואבטחה").
+
+- **תבניות WhatsApp — פיתוח ללא אישור Meta:**
+  - ב-Mock ניתן לנסח את תוכן כל התבניות ולאחסן ב-`WhatsAppTemplate`. לפני עלייה לאוויר: יש להגיש לאישור Meta דרך Meta Business Suite (תהליך ידני); עדיין לא ממוכן במערכת (ראו 6.8).
+  - נוסחי התבניות חייבים לעמוד ב-טון הדיבור של MAJIDA (נספח א.4): "היי {שם} 🤍 ..." ולא "שלום רב, מכובד/ת ...".
+
+- **ספריות npm חדשות שיידרשו (מותנות באישור):**
+  - `pdf-lib` — ייצור PDF טפסי הסכמה (סעיף 7.8).
+  - `exceljs` — ייצוא XLSX (סעיף 10.1).
+  - `date-fns-tz` (ייתכן שכבר קיים) — חישובי שעות שקטות + שבת (סעיף 6.2).
+  - `@vercel/blob` — אחסון PDF (סעיף 7.8).
+  - כל ספרייה: יש לוודא שהיא pure JS/TS ותואמת Vercel Serverless לפני התקנה.
+
+- **הערות משימות 8.2–8.3 (coder):**
+  - 8.2: נתיב המסך הוא `/treatments/[id]` (לפי הנחיית המשימה), ולא `/admin/treatments/[id]` כפי שנכתב בתיאור המשימה המקורי. `/treatments` נוסף ל-matcher של `middleware.ts`. הטופס כולל כרגע שם, ימים, נמען והנחיה לאדמין בלבד — שדה `clientTemplateId` (select מ-`WhatsAppTemplate`) לא נוסף ויש להוסיפו בשלב 8.5/6.8. עריכת כלל (ערוך) לא מומשה — רק הוספה ומחיקה רכה.
+  - 8.3: `createFollowUpsForVisit(visitId)` ב-`lib/db/visits.ts` נקרא מתוך `POST /api/clients/:id/visits` (לאחר יצירת הביקור, בבלוק try/catch נפרד כך שכשל במעקבים לא מבטל את שמירת הביקור). אידמפוטנטי לפי `(visitId, ruleId)`. **לא מומש עדיין:** פאנל "מעקבים מתוכננים" בממשק סיום הביקור, שינוי `scheduledDate` ידני, מעקב ידני וביטול מעקב לפני שמירה, וכן "אפשרות הדריסה" במובן ה-UI — נדרש תכנון UI נפרד (כנראה בתוך VisitForm).
+
+- **הערות משימות 8.5–8.7 (coder):**
+  - 8.5 / 8.6 / 8.7 מומשו על ה-handler המאוחד היחיד `app/api/cron/run/route.ts` (ללא cron חדש ב-`vercel.json`; הנתיב `/api/cron/follow-ups` המקורי בתיאור 8.5 בוטל במכוון בגלל מגבלת Hobby). הקובץים: `lib/followups/scheduler.ts`, `lib/followups/email.ts`, `app/tasks/page.tsx`, `components/followups/AdminTasksList.tsx`, `app/api/admin-tasks/[id]/route.ts`.
+  - מודל `AdminTask` נוסף (מיגרציה `20261107065016_add_admin_task_model`), עם back-relations ב-`FollowUp` וב-`Client`.
+  - שמירה על אידמפוטנטיות ב-Scheduler: הודעת הלקוח נשלחת פעם אחת בלבד לכל מעקב (לפי `FollowUp.messageId`) — כך ש"לא ענה/תה" (שמחזיר ל-PENDING) לא שולח שוב הודעה ללקוחה שכבר קיבלה; ומשימת אדמין חדשה נוצרת רק אם אין משימה OPEN למעקב.
+  - פעולות ה-PATCH: `booked` → FollowUp.status=BOOKED; `no_answer` → scheduledDate+2 ימים, status=PENDING; `not_interested` → FollowUp.status=CANCELLED (סטטוס זה לא הוגדר מפורשות ב-8.1 — נבחר כאן). בכל הפעולות AdminTask.status=DONE.
+  - תבנית שיווקית (`WhatsAppTemplate.category=MARKETING`) ללקוח/ה ללא `marketingConsentChannel` — לא נשלחת (מדולג). מעקב שנשאר PENDING בגלל אי-התאמה כזו ייבדק שוב בכל ריצה — לא נוצרה התראה לאדמין על כך.
+  - מעקבים ידניים (ללא `ruleId`) מדולגים אוטומטית ונשארים PENDING (לא מטופלים עד שתתווסף לוגיקה/מסך לכך).
+  - **פער מול PLAN 8.5:** כפתור "לקביעת תור" בהודעת WhatsApp לא ממומש (תלוי בתבנית מאושרת ב-Meta ובשירות); ההודעה נשלחת כתבנית טקסט בלבד.
+  - **פער מול PLAN 8.6:** "לחזור בתאריך" (picker) ו-"טיפול אחרון / סיכום ביקור" במסך המשימות לא מומשו (לא נכללו בתיאור המשימה ב-coder prompt); הסטטוס SNOOZED לא בשימוש — "לא ענה/תה" מחזיר ל-PENDING כמתואר.
+  - **פער מול PLAN 8.7:** שליחת מייל אמיתית (SendGrid/Resend) עדיין לא מומשה — ב-`lib/followups/email.ts` יש TODO; במצב mock/חסר מפתח נרשם console.info בלבד. הבדג' בניווט עדיין לא נוסף (רק badge בכותרת מסך `/tasks`) — בהתאם להערה בתיאור 8.7 שהוא ייעשה במשימה נפרדת.
+  - `/tasks` ו-`/tasks/:path*` נוספו ל-matcher של `middleware.ts`. `PATCH /api/admin-tasks/:id` בודק session בעצמו (middleware לא מכסה `/api`).
+  - משתני סביבה חדשים ב-`.env.example`: `ADMIN_EMAIL`, `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS`.
+  - ה-ESLint של הפרויקט שבור לפני השינויים הללו (`eslint-config-next/core-web-vitals` לא נמצא) — לא תוקן במשימה זו; בדיקת ה-build/TypeScript (`npx tsc --noEmit`) עוברת.
+
+## Notes/Risks — הוספות לסעיף 9 (קמפיינים, coder 9.1/9.2)
+- **פער מול PLAN 9.1 — נתיב הדף:** ה-PLAN מציין `/admin/campaigns`, אך בבריף המשימה והמבנה הקיים בפרויקט (`/clients`, `/tasks`, `/consent-templates`) הדף ממוקם ב-`/campaigns` ו-`/campaigns/new`. הוחלט להישאר עם `/campaigns` ולעדכן את ה-PLAN ע"י ה-planner אם רוצים נתיב `/admin` אחיד.
+- **פער מול PLAN 9.1 — שדות/קשרים חסרים בסכמה:** הבריף הגדיר את מודל `Campaign` ללא `clickCount` (קיים ב-PLAN) וללא relation ל-`Message[]` (`sourceType=campaign`, `sourceId=campaign.id`). יש להוסיף בעת מימוש 9.5/9.6 (מיגרציה נפרדת) אם נדרש.
+- **הערכת עלות (FR-MK-07):** העלות מחושבת רק כש-`recipientCount` ידוע. ספירת הנמענים היא משימה 9.4; עד אז הטופס מציג "ממתין לחישוב נמענים" ו-`estimatedCostIls` נשאר null. ה-`recipientCount` נשלח לטופס כ-prop אופציונלי (`CampaignForm`) כך שחיבור 9.4 דורש שינוי מינימלי.
+- **תעריף:** `WHATSAPP_COST_PER_MESSAGE_ILS` נקרא בשרת (`app/campaigns/new/page.tsx`) ומועבר לטופס כ-prop — המשתנה אינו `NEXT_PUBLIC_` ולכן לא נחשף לדפדפן. סטייה קלה מ"דף Client Component" בבריף: ה-page הוא wrapper שרת והטופס עצמו Client Component.
+- **שמירת טיוטה עם תזמון:** `POST /api/campaigns` שומר `scheduledAt` אך תמיד `status=DRAFT`. המעבר ל-SCHEDULED/SENDING/SENT יתבצע במשימה 9.5 בלבד.
+- **PATCH/DELETE:** עריכה מותרת רק ב-DRAFT/SCHEDULED (409 אחרת); ביטול (DELETE) מותר רק ב-DRAFT/SCHEDULED, ביטול חוזר אידמפוטנטי. אין מחיקה פיזית.
+- **`GET /api/whatsapp/templates?category=`:** נוסף פרמטר אופציונלי לסינון לפי קטגוריה (ללא שינוי התנהגות ללא הפרמטר).
+
+## Notes/Risks — הוספות לסעיף 9 (coder 9.3–9.6)
+- **הפרדת שליחה ל-cron יומי (סיכון מהותי):** `vercel.json` מגדיר את `/api/cron/run` פעם ביום (`0 6 * * *`). לכן קמפיין מתוזמן ייצא רק במחזור היומי הבא, ולא בשעה שנקבעה. דרוש החלטה: cron תכוף יותר (דורש שדרוג תוכנית Vercel) או הרצה נוספת של `/api/cron/run` מתזמן חיצוני.
+- **תקציב זמן להרצה (`MAX_RUN_MS = 50s`):** `processCampaigns` עוצר לפני תום התקציב ומשאיר את הקמפיין ב-SENDING. ההרצה הבאה ממשיכה ומדלגת על נמענים שכבר קיבלו הודעה. יש לוודא `maxDuration` מתאים לפונקציית ה-cron.
+- **שעות שקטות / שבת:** `lib/campaigns/sender.ts` אינו בודק `isQuietHour` / `isShabbat` (בניגוד ל-follow-ups ול-reminders). דרוש אישור מוצר והוספת בדיקה לפני השליחה.
+- **הסרה (STOP) בהודעת שיווק:** הטקסט "שלח/י STOP להסרה" חייב להופיע בגוף התבנית המאושרת ע"י Meta; הקוד לא מוסיף אותו. ה-webhook של STOP (6.6) עדיין לא מיושם.
+- **הודעות בדיקה לאדמין:** `POST /api/campaigns/[id]/test` יוצר Message עם `clientId = null`. הדוח (9.6) וההמשכיות ב-sender מסננים לפי `clientId != null`, כך שהבדיקה אינה נספרת.
+- **בחירת נמענים:** הספירה (9.4) והשליחה (9.5) משתמשות ב-`listClients` עם פילטר הסגמנט (ולא בשאילתה גלובלית על כל הלקוחות כמוצע בתיאור המשימה), כך שהסגמנט אכן מגדיר את קהל היעד. `total` כולל גם מאורכבים. טלפון הוא שדה חובה בסכמה, ולכן אין החרגת "אין טלפון" נפרדת.
+- **שם הנמען בשליחה:** `{name}` = שם מלא (בהתאמה ל-`notifications.ts`); `{date}` = היום בפורמט DD/MM/YYYY; משתנים אחרים נשלחים ריקים (לא ערכי דוגמה).
+- **קמפיין ללא סגמנט/תבנית ב-SENDING:** ה-sender מבטל אותו (`CANCELLED`) כדי שלא ייתפס שוב בכל מחזור.
+- **UI חסר לשליחה:** נתיב `POST /api/campaigns/[id]/send` קיים, אך אין עדיין כפתור "שלח" / modal אישור בדף הקמפיין. נדרש להוסיפו.
+- **משתנה סביבה חדש:** `ADMIN_PHONE` נוסף ל-`.env.example` (ערך ריק; אין לשים מספר אמיתי בקוד).
+
+## Notes/Risks — הוספות לסעיף 10 (coder 10.1/10.2)
+- **מימוש קיים הוחלף:** `app/api/clients/export/route.ts` (משימה 3.12) היה placeholder ללא בדיקת אדמין ועם שדות שונים (ללא תגיות/ביקורים/מין). הוא הורחב לפי 10.1 (שדות, `format=csv|xlsx`, אדמין בלבד). כפתור "ייצוא CSV" הישן בסרגל הפעולות הקבוצתיות הוסר והוחלף בתפריט "ייצוא" (CSV / Excel) בראש הרשימה, גלוי לאדמין בלבד וממוקד לפילטר הפעיל.
+- **תרגום ערכי enum לעברית בייצוא:** מין, ערוץ הסכמה, סטטוס לקוח וסטטוס תור מיוצאים כתוויות בעברית (לא כערכי ה-DB). יש לאשר עם הקליניקה.
+- **ביקור אחרון / מספר ביקורים:** מחושבים משאילתה מאוגדת (`visit.groupBy`) על הלקוחות המסוננים; לקוח ללא ביקורים מקבל מספר ביקורים 0 וביקור אחרון ריק.
+- **לקוחות מאורכבים:** הייצוא משתמש ב-`listClients` ברירת מחדל, כלומר רק לקוחות פעילים (כמו רשימת הלקוחות).
+- **אזור זמן:** תאריכים בייצוא (תאריך לידה, ביקור אחרון, תאריך תור) מעוצבים לפי שעון ישראל (`lib/exports/csv.ts`). טווח התאריכים בייצוא התורים נקבע לפי ימים בשעון ישראל (כולל משני הקצוות).
+- **`/api/appointments/export`:** לא מבוסס על `getAppointmentsByDateRange` כי נדרשים סינון לפי מטפל/ת וסטטוס; השאילתה נבנתה ישירות ב-route. לא נוספה בדיקת טווח מקסימלי — ייצוא טווח ארוך מאוד עלול להיות כבד.
+- **Excel ומספרי טלפון:** בקובץ CSV שנפתח ישירות ב-Excel, טלפון שמתחיל ב-0 עלול לאבד את האפס. ב-XLSX הטלפון נשמר כטקסט.
+- **בדיקות:** לא נכתבו בדיקות (תפקיד ה-tester). נדרשת בדיקה ידנית בדפדפן של כפתורי הייצוא (תפקיד אדמין ומשתמש רגיל) ופתיחת קובץ ה-XLSX.

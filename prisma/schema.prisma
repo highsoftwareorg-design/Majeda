@@ -67,6 +67,8 @@ model Treatment {
   visitTreatments    VisitTreatment[]
   // Back-reference for Appointment (task 5.1).
   appointments       Appointment[]
+  // Back-reference for follow-up rules linked to this treatment (task 8.1, FR-FU-01).
+  followUpRules      FollowUpRule[]
 }
 
 // Gender ("מין") — SRS §3/§12.1. Optional: not always known/provided
@@ -161,6 +163,14 @@ model Client {
   visits                  Visit[]
   // All appointments for this client (task 5.1).
   appointments            Appointment[]
+  // All messages sent to or received from this client (task 6.1).
+  messages                Message[]
+  // All signed consent forms for this client (task 7.1, FR-CF-01).
+  signedConsents          SignedConsent[]
+  // All follow-ups for this client (task 8.1, FR-FU-01).
+  followUps               FollowUp[]
+  // All admin tasks (משימות להתקשר) for this client (task 8.6, FR-FU-04).
+  adminTasks              AdminTask[]
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 }
@@ -224,6 +234,8 @@ model Visit {
   visitTreatments VisitTreatment[]
   // Amendments recorded after the 24-hour lock window (task 4.8, FR-PR-07).
   amendments      VisitAmendment[]
+  // All follow-ups triggered by this visit (task 8.1, FR-FU-01).
+  followUps       FollowUp[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -288,6 +300,15 @@ model Appointment {
   notes         String?
   // היסטוריית שינויי סטטוס (משימה 5.8, FR-AP-04)
   statusHistory AppointmentStatusHistory[]
+  // תזכורות WhatsApp — משימות 6.4/6.5 (FR-WA-02).
+  // מוגדרים כ-null עד לשליחה בפועל; לאחר השליחה מאוחסן ה-timestamp של השליחה.
+  // מנגנון אידמפוטנטי: Scheduler בודק ש-null לפני שליחה ומעדכן ל-now() אחריה.
+  reminder24hSentAt DateTime?
+  reminder3hSentAt  DateTime?
+  // טפסי הסכמה חתומים שמשויכים לתור זה (task 7.1, FR-CF-01).
+  signedConsents    SignedConsent[]
+  // דריסות חסימת ביצוע ללא טופס הסכמה — task 7.10, FR-CF-10.
+  consentOverrides  ConsentOverride[]
   createdAt     DateTime                   @default(now())
   updatedAt     DateTime                   @updatedAt
 }
@@ -320,6 +341,39 @@ model ClinicSettings {
   updatedAt      DateTime @updatedAt
 }
 
+// Message — יומן הודעות יוצאות ונכנסות (משימה 6.1, FR-WA-06).
+// כל הודעה שנשלחת ללקוח דרך WhatsApp/SMS/דואל נרשמת כאן,
+// כולל סטטוס מסירה, מזהה חיצוני (Twilio SID) ומקור (תור/מעקב/קמפיין/טופס).
+model Message {
+  id           String    @id @default(cuid())
+  clientId     String?
+  client       Client?   @relation(fields: [clientId], references: [id])
+  // ערוץ השליחה: 'whatsapp' | 'sms' | 'email'
+  channel      String
+  // מזהה תבנית (Twilio template SID or Meta template name)
+  templateId   String?
+  // ערכי המשתנים שמולאו בתבנית — JSON
+  content      Json?
+  // כיוון ההודעה: 'outbound' (יוצאת) | 'inbound' (נכנסת)
+  direction    String    @default("outbound")
+  // סטטוס: PENDING | SENDING | SENT | DELIVERED | READ | FAILED | MOCK
+  status       String    @default("PENDING")
+  // מזהה חיצוני (Twilio Message SID)
+  externalId   String?
+  // מקור ההודעה: 'appointment' | 'follow_up' | 'campaign' | 'consent'
+  sourceType   String?
+  // מזהה הרשומה שיצרה את ההודעה (תור/מעקב/קמפיין/טופס)
+  sourceId     String?
+  errorCode    String?
+  errorMessage String?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+  // Follow-ups that sent this message (task 8.1, FR-FU-01).
+  followUps    FollowUp[]
+}
+
 // Segment — פילטר שמור לשימוש חוזר (משימה 3.11, FR-CL-09, §12.1).
 // שומר את מצב כל הפילטרים של רשימת הלקוחות בפורמט JSON,
 // מוכן לשימוש עתידי בקמפיינים (§7) מבלי לשנות את מבנה הנתונים.
@@ -331,4 +385,218 @@ model Segment {
   filters   Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  // Campaigns that target this segment (task 9.1, FR-MK-01).
+  campaigns Campaign[]
+}
+
+// ConsentTemplate — תבנית טופס הסכמה (משימה 7.1, FR-CF-01, FR-CF-03, §12.1).
+// כל טופס הסכמה מבוסס על תבנית — טיפולים ספציפיים או תבנית כללית.
+// תמיכה בגרסאות: כל גרסה חדשה יוצרת רשומה חדשה עם previousVersionId לגרסה הקודמת.
+// שדה `fields` הוא מערך JSON של אובייקטי שדה (name, label, type, required וכו׳).
+// שדה `treatmentIds` הוא מערך JSON של מזהי Treatment — לסינון "אילו טיפולים מחייבים טופס זה".
+// כאשר `isGeneral=true` — הטופס מתאים לכל טיפול (ריאיון רפואי כללי, הסכמה כללית).
+model ConsentTemplate {
+  id                String            @id @default(cuid())
+  name              String
+  // מערך מזהי Treatment שהטופס מיועד להם; ריק = כל הטיפולים אם isGeneral=true
+  treatmentIds      Json              @default("[]")
+  isGeneral         Boolean           @default(false)
+  // מערך אובייקטי שדה: { name, label, type, required, options? }
+  fields            Json              @default("[]")
+  // מספר ימים שהטופס בתוקף לאחר חתימה (null = ללא פג תוקף)
+  validityDays      Int?
+  version           Int               @default(1)
+  // קישור לגרסה הקודמת של הטופס (self-referential)
+  previousVersionId String?
+  previousVersion   ConsentTemplate?  @relation("ConsentVersions", fields: [previousVersionId], references: [id])
+  nextVersions      ConsentTemplate[] @relation("ConsentVersions")
+  language          String            @default("he")
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  signedConsents    SignedConsent[]
+}
+
+// SignedConsent — טופס הסכמה חתום (משימה 7.1, FR-CF-07, §12.1).
+// נוצר כאשר לקוח חותם (דיגיטלית) על טופס הסכמה לפני/אחרי טיפול.
+// הקישור לתור הוא אופציונלי כי ייתכן שחתימה מתבצעת ללא תור קיים.
+// `signingToken` — קישור חד-פעמי שנשלח ללקוח; הוכחת שהוא מי שחתם (תחליף OTP).
+// `auditHash` — hash (SHA-256) של תוכן הטופס בעת החתימה, לצורכי אימות שלמות.
+// `pdfStorageKey` — מפתח אחסון ב-Vercel Blob / S3 לאחר יצירת PDF.
+// הערה: `otpVerifiedPhone` הושמט בכוונה — ראו הערת ארכיטקטורה PLAN.md §7.
+model SignedConsent {
+  id                     String           @id @default(cuid())
+  clientId               String
+  client                 Client           @relation(fields: [clientId], references: [id])
+  appointmentId          String?
+  appointment            Appointment?     @relation(fields: [appointmentId], references: [id])
+  templateId             String
+  template               ConsentTemplate  @relation(fields: [templateId], references: [id])
+  // גרסת התבנית בעת החתימה — snapshot לתיעוד (ConsentTemplate.version)
+  templateVersion        Int
+  // ערכי השדות שמולאו על-ידי הלקוח — JSON { fieldName: value }
+  fieldValues            Json             @default("{}")
+  // נתוני חתימה דיגיטלית של הלקוח — base64 PNG של canvas (SVG-path אופציונלי)
+  signatureClientData    String?          @db.Text
+  // נתוני חתימה של המטפל/ת — base64 PNG (אם נדרש)
+  signatureTherapistData String?          @db.Text
+  // פרטי אפוטרופוס — ממלאים כאשר הלקוח/ה קטין/ה
+  guardianName           String?
+  guardianIdNumber       String?
+  // טוקן חתימה — UUID ייחודי שנשלח ללקוח דרך WhatsApp/SMS לצורך זיהוי
+  signingToken           String?          @unique
+  signingTokenExpiresAt  DateTime?
+  // מידע על המכשיר/IP בעת החתימה — לצורכי audit trail
+  auditIp                String?
+  auditDevice            String?
+  // hash של תוכן הטופס בעת החתימה (SHA-256) — לאימות שלמות
+  auditHash              String?
+  // מפתח אחסון קובץ ה-PDF בחתימה (Vercel Blob / S3)
+  pdfStorageKey          String?
+  // מתי החתימה בוצעה (null = לא נחתם עדיין — סטטוס "ממתין")
+  signedAt               DateTime?
+  createdAt              DateTime         @default(now())
+}
+
+// ConsentOverride — רשומת דריסת חסימת ביצוע ללא טופס הסכמה (task 7.10, FR-CF-10).
+// נוצרת כאשר אדמין מאשר ביצוע תור כ-COMPLETED למרות שאין טופס הסכמה בתוקף,
+// עם סיבה מפורשת ושם המאשר — לצרכי audit trail.
+model ConsentOverride {
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  // סיבת הדריסה — חובה, מוזנת ע"י האדמין
+  reason        String
+  // שם/מייל האדמין שאישר את הדריסה
+  approvedBy    String
+  approvedAt    DateTime    @default(now())
+}
+
+// FollowUpRule — כלל מעקב אחרי טיפול (משימה 8.1, FR-FU-01, §12.1).
+// כל כלל מגדיר מתי ולמי לשלוח מעקב לאחר ביקור שבו בוצע טיפול מסוים.
+// offsetDays: מספר ימים מתאריך הביקור לשליחת המעקב.
+// recipientType: 'client' (הודעה ללקוח), 'admin' (תזכורת לאדמין), 'both'.
+// clientTemplateId: מזהה תבנית WhatsApp לשליחה ללקוח (WhatsAppTemplate.id).
+// adminNote: הנחיה טקסטואלית לאדמין (ללא שליחה אוטומטית).
+model FollowUpRule {
+  id               String         @id @default(cuid())
+  treatmentId      String
+  treatment        Treatment      @relation(fields: [treatmentId], references: [id])
+  // תיאור הכלל, למשל "בדיקת שלומות", "הצעת חידוש טיפול"
+  name             String
+  // מספר ימים מתאריך הביקור לשליחת המעקב
+  offsetDays       Int
+  // 'client' | 'admin' | 'both'
+  recipientType    String         @default("client")
+  // מזהה תבנית WhatsApp לשליחה ללקוח (אופציונלי)
+  clientTemplateId String?
+  // נוסח ההנחיה לאדמין (אופציונלי)
+  adminNote        String?
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  followUps        FollowUp[]
+}
+
+// FollowUp — רשומת מעקב בודדת (משימה 8.1, FR-FU-01, §12.1).
+// נוצרת אוטומטית (מכלל) או ידנית לאחר ביקור.
+// status: PENDING (ממתין), SENT (נשלח), CANCELLED (בוטל), BOOKED (נקבע תור).
+// callResult: תוצאת שיחת מעקב ידנית (appointment_booked | no_answer | not_interested | callback).
+model FollowUp {
+  id            String        @id @default(cuid())
+  visitId       String
+  visit         Visit         @relation(fields: [visitId], references: [id])
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  // null אם נוצר ידנית (לא מכלל)
+  ruleId        String?
+  rule          FollowUpRule? @relation(fields: [ruleId], references: [id])
+  scheduledDate DateTime
+  // PENDING | SENT | CANCELLED | BOOKED
+  status        String        @default("PENDING")
+  // appointment_booked | no_answer | not_interested | callback
+  callResult    String?
+  callNote      String?
+  callResultAt  DateTime?
+  // מזהה ההודעה שנשלחה (Message.id)
+  messageId     String?
+  message       Message?      @relation(fields: [messageId], references: [id])
+  // Admin tasks created from this follow-up (task 8.6, FR-FU-04).
+  adminTasks    AdminTask[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// AdminTask — משימת "להתקשר היום" לאדמין (משימה 8.6, FR-FU-04).
+// נוצרת על-ידי ה-Scheduler (lib/followups/scheduler.ts) כאשר מעקב נדרש לטיפול אדמין.
+// status: OPEN (פתוחה) | DONE (טופלה) | SNOOZED (נדחתה).
+model AdminTask {
+  id         String    @id @default(cuid())
+  followUpId String
+  followUp   FollowUp  @relation(fields: [followUpId], references: [id])
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id])
+  // OPEN | DONE | SNOOZED
+  status     String    @default("OPEN")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+// WhatsAppTemplate — תבניות הודעות WhatsApp (משימה 6.8, FR-WA-05).
+// כל תבנית שנשלחת ב-WhatsApp חייבת להיות מאושרת על-ידי Meta לפני שימוש.
+// בשלב זה: ניסוח ושמירת תוכן התבניות — ללא הגשה אוטומטית ל-Meta (ידנית דרך Meta Business Suite).
+// תבניות אלו נמצאות בשימוש על-ידי תזכורות תורים (6.3–6.5), מעקבים (8.5) וקמפיינים (9.2).
+model WhatsAppTemplate {
+  id             String   @id @default(cuid())
+  // שם התבנית — ייחודי, מזהה Meta (אותיות קטנות, קו תחתון, מספרים)
+  name           String   @unique
+  // קטגוריית התבנית לפי Meta: UTILITY (שירות) או MARKETING (שיווק)
+  category       String   @default("UTILITY")
+  // גוף ההודעה עם placeholder-ים בפורמט {שם_משתנה}, למשל "היי {name} 🤍 ..."
+  body           String
+  // רשימת שמות המשתנים ב-JSON (מערך מחרוזות), למשל ["name", "date", "time"]
+  variables      Json     @default("[]")
+  // האם התבנית אושרה על-ידי Meta — יש לעדכן ידנית לאחר קבלת אישור
+  approvedByMeta Boolean  @default(false)
+  // שפת התבנית: 'he' (עברית) או 'ar' (ערבית)
+  language       String   @default("he")
+  // האם התבנית פעילה (soft delete — false = בארכיון)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  // Campaigns that use this template (task 9.1, FR-MK-01).
+  campaigns      Campaign[]
+}
+
+// Campaign — קמפיין הודעות WhatsApp שיווקי (משימה 9.1, FR-MK-01, §12.1 Campaign).
+// שייך לסגמנט (קהל יעד) ולתבנית MARKETING. נשמר כטיוטה (DRAFT) עד לתזמון/שליחה.
+// status: DRAFT | SCHEDULED | SENDING | SENT | CANCELLED (String — ללא enum, כמו Message/FollowUp).
+// ספירות (recipientCount..bookedCount) וכן estimatedCostIls מתמלאות בשלבים מאוחרים (9.4–9.6).
+model Campaign {
+  id               String           @id @default(cuid())
+  name             String
+  segmentId        String?
+  segment          Segment?         @relation(fields: [segmentId], references: [id])
+  templateId       String?
+  template         WhatsAppTemplate? @relation(fields: [templateId], references: [id])
+  // URL תמונה/וידאו (אופציונלי)
+  mediaUrl         String?
+  // כפתור קישור (אופציונלי)
+  linkButtonUrl    String?
+  linkButtonText   String?
+  // DRAFT | SCHEDULED | SENDING | SENT | CANCELLED
+  status           String           @default("DRAFT")
+  scheduledAt      DateTime?
+  sentAt           DateTime?
+  recipientCount   Int?
+  sentCount        Int?
+  deliveredCount   Int?
+  readCount        Int?
+  failedCount      Int?
+  unsubscribeCount Int?
+  bookedCount      Int?
+  // עלות משוערת בש"ח = recipientCount × WHATSAPP_COST_PER_MESSAGE_ILS
+  estimatedCostIls Decimal?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 }

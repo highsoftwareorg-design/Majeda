@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getClientById } from "@/lib/db/clients";
+import { createFollowUpsForVisit } from "@/lib/db/visits";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -123,6 +124,14 @@ export async function POST(request: Request, { params }: RouteParams) {
         },
       },
     });
+
+    // יצירת מעקבים לפי כללי הטיפולים (משימה 8.3, FR-FU-02).
+    // כשל ביצירת המעקבים אינו מבטל את שמירת הביקור — רק נרשם בלוג.
+    try {
+      await createFollowUpsForVisit(visit.id);
+    } catch (err) {
+      console.error("[POST /api/clients/:id/visits] createFollowUpsForVisit", err);
+    }
 
     return NextResponse.json({ visit }, { status: 201 });
   } catch (err) {

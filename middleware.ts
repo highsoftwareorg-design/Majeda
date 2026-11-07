@@ -23,5 +23,13 @@ export const config = {
     "/calendar/:path*",
     "/settings",
     "/settings/:path*",
+    "/consent-templates",
+    "/consent-templates/:path*",
+    "/treatments",
+    "/treatments/:path*",
+    "/tasks",
+    "/tasks/:path*",
+    "/campaigns",
+    "/campaigns/:path*",
   ],
 };

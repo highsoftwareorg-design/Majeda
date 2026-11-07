@@ -15,7 +15,7 @@
  *
  * export בודק:
  *  1. מחזיר 200 עם Content-Type text/csv.
- *  2. שורת הכותרת מכילה את שבעת הכותרות בעברית הנדרשות.
+ *  2. שורת הכותרת מכילה את שתים-עשרה הכותרות בעברית הנדרשות.
  *  3. מספר שורות הנתונים תואם למספר הלקוחות שהוחזרו.
  *  4. listClients ריקה — מחזיר CSV עם כותרת בלבד (שורה אחת בנוסף ל-BOM).
  *
@@ -29,11 +29,17 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 const {
   mockTagFindUnique,
   mockClientTagCreateMany,
+  mockClientTagFindMany,
+  mockVisitGroupBy,
   mockListClients,
+  mockAuth,
 } = vi.hoisted(() => ({
   mockTagFindUnique: vi.fn(),
   mockClientTagCreateMany: vi.fn(),
+  mockClientTagFindMany: vi.fn(),
+  mockVisitGroupBy: vi.fn(),
   mockListClients: vi.fn(),
+  mockAuth: vi.fn(),
 }));
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -47,10 +53,18 @@ vi.mock("next/server", () => ({
   },
 }));
 
+vi.mock("@/lib/auth/auth", () => ({
+  auth: mockAuth,
+}));
+
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     tag: { findUnique: mockTagFindUnique },
-    clientTag: { createMany: mockClientTagCreateMany },
+    clientTag: {
+      createMany: mockClientTagCreateMany,
+      findMany: mockClientTagFindMany,
+    },
+    visit: { groupBy: mockVisitGroupBy },
   },
 }));
 
@@ -101,10 +115,12 @@ function makeFakeClient(overrides: Partial<Record<string, unknown>> = {}) {
     firstName: "שרה",
     lastName: "כהן",
     phone: "0501234567",
-    email: "sarah@example.com",
+    gender: "female",
+    birthDate: new Date("1990-05-10"),
     city: "תל אביב",
     source: "landing_page",
-    createdAt: new Date("2024-01-15"),
+    status: "active",
+    marketingConsentChannel: "whatsapp",
     ...overrides,
   };
 }
@@ -201,6 +217,9 @@ describe("POST /api/clients/bulk-tag — משימה 3.12", () => {
 describe("GET /api/clients/export — משימה 3.12", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ user: { id: "user-1", role: "admin" } });
+    mockClientTagFindMany.mockResolvedValue([]);
+    mockVisitGroupBy.mockResolvedValue([]);
   });
 
   it("מחזיר status 200", async () => {
@@ -216,7 +235,7 @@ describe("GET /api/clients/export — משימה 3.12", () => {
     expect(contentType).toContain("text/csv");
   });
 
-  it("שורת הכותרת מכילה את שבעת הכותרות בעברית הנדרשות", async () => {
+  it("שורת הכותרת מכילה את שתים-עשרה הכותרות בעברית הנדרשות", async () => {
     mockListClients.mockResolvedValue([]);
     const res = await GET_EXPORT(makeGetExportRequest());
     const text = await res.text();
@@ -226,10 +245,16 @@ describe("GET /api/clients/export — משימה 3.12", () => {
     expect(headerLine).toContain("שם פרטי");
     expect(headerLine).toContain("שם משפחה");
     expect(headerLine).toContain("טלפון");
-    expect(headerLine).toContain("אימייל");
+    expect(headerLine).toContain("מין");
+    expect(headerLine).toContain("תאריך לידה");
     expect(headerLine).toContain("עיר");
-    expect(headerLine).toContain("מקור הגעה");
-    expect(headerLine).toContain("תאריך הוספה");
+    expect(headerLine).toContain("מקור");
+    expect(headerLine).toContain("תגיות");
+    expect(headerLine).toContain("ביקור אחרון");
+    expect(headerLine).toContain("ביקורים");
+    expect(headerLine).toContain("הסכמה לדיוור");
+    expect(headerLine).toContain("סטטוס");
+    expect(headerLine.split(",")).toHaveLength(12);
   });
 
   it("מספר שורות הנתונים תואם למספר הלקוחות שהוחזרו", async () => {

@@ -9,7 +9,11 @@
 import { NextResponse } from "next/server";
 import { AppointmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { getAppointmentById, checkAppointmentConflict } from "@/lib/db/appointments";
+import {
+  getAppointmentById,
+  checkAppointmentConflict,
+  checkClientHasValidConsent,
+} from "@/lib/db/appointments";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -179,6 +183,51 @@ export async function PATCH(request: Request, { params }: RouteParams) {
           ? `המטפל/ת "${effectiveTherapist}" כבר קבוע/ה לתור בשעות ${conflict.conflictWith ?? ""}`
           : `החדר "${effectiveRoom}" כבר תפוס בשעות ${conflict.conflictWith ?? ""}`;
       return NextResponse.json({ error: msg }, { status: 409 });
+    }
+  }
+
+  // חסימה רכה: מעבר ל-COMPLETED עם requiresConsentForm → בדיקת טופס הסכמה (task 7.10, FR-CF-10)
+  if (
+    "status" in updateData &&
+    updateData.status === "COMPLETED" &&
+    existing.treatment?.requiresConsentForm
+  ) {
+    const hasValid = await checkClientHasValidConsent(existing.clientId);
+    const overrideReason =
+      typeof data.overrideReason === "string" && data.overrideReason.trim()
+        ? (data.overrideReason as string).trim()
+        : null;
+    const approvedBy =
+      typeof data.approvedBy === "string" && data.approvedBy.trim()
+        ? (data.approvedBy as string).trim()
+        : null;
+
+    if (!hasValid && !overrideReason) {
+      // מחזיר 422 עם code=CONSENT_REQUIRED (לא 400 — הבקשה תקינה אך חסר תנאי עסקי)
+      const template = await prisma.consentTemplate.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+      });
+      return NextResponse.json(
+        {
+          error: "נדרש טופס הסכמה חתום לפני סיום הטיפול",
+          code: "CONSENT_REQUIRED",
+          consentTemplateId: template?.id ?? null,
+        },
+        { status: 422 }
+      );
+    }
+
+    // דריסת אדמין — יצירת רשומת audit
+    if (overrideReason && approvedBy) {
+      await prisma.consentOverride.create({
+        data: {
+          appointmentId: id,
+          reason: overrideReason,
+          approvedBy,
+          approvedAt: new Date(),
+        },
+      });
     }
   }
 

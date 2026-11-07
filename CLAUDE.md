@@ -51,7 +51,7 @@ deployer → deployment readiness report → (user approval) → actual deployme
 - If `tester` reports failures — go back to `coder` to fix them, then back to `tester`, until tests pass.
 - Once all of `PLAN.md` is marked `[x]` (or the relevant portion for release) and tests are green — run `deployer` to prepare the deployment to Vercel.
 - `deployer` **does not perform an actual deployment** (`vercel --prod`, etc.) without explicit user approval in the conversation.
-- `PLAN.md` is the single source of truth for tasks — every agent reads it before starting work, and only `planner` and `coder` update it (planner updates the plan, coder updates the `[x]` marks).
+- `PLAN.md` is the single source of truth for tasks — every agent reads it before starting work, and only `planner` and `coder` update it (planner updates the plan, coder updates the `[x]` marks). **Never read PLAN.md whole** — use `Grep` to find specific tasks, or `Read` with `offset`/`limit` to the lines you need.
 - Treat client PII, signed consent forms, and treatment history as sensitive data per SRS §11 — never log, display, or commit real client data or secrets.
 
 ## Invoking the agents

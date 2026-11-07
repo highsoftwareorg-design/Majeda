@@ -7,14 +7,18 @@
  */
 
 import { connection } from "next/server";
+import { formatInTimeZone } from "date-fns-tz";
+import { auth } from "@/lib/auth/auth";
 import { getAppointmentsByDateRange } from "@/lib/db/appointments";
 import { getClinicSettings } from "@/lib/db/clinicSettings";
 import { prisma } from "@/lib/db/prisma";
+import { ISRAEL_TZ } from "@/lib/exports/csv";
 import {
   WeeklyCalendar,
   type SerializedAppointment,
   type TreatmentOption,
 } from "@/components/calendar/WeeklyCalendar";
+import { AppointmentsExport } from "@/components/calendar/AppointmentsExport";
 
 /** מחזיר את תחילת השבוע (ראשון=0) עבור תאריך נתון */
 function getWeekStart(date: Date): Date {
@@ -34,7 +38,8 @@ export default async function CalendarPage() {
   weekEnd.setDate(weekEnd.getDate() + 6);
   weekEnd.setHours(23, 59, 59, 999);
 
-  const [rawAppointments, clinicSettings, rawTreatments] = await Promise.all([
+  const [session, rawAppointments, clinicSettings, rawTreatments] = await Promise.all([
+    auth(),
     getAppointmentsByDateRange(weekStart, weekEnd),
     getClinicSettings(),
     // שליפת רשימת טיפולים לדיאלוג יצירת תור חדש (משימה 5.9, FR-AP-02)
@@ -89,6 +94,15 @@ export default async function CalendarPage() {
       className="flex flex-col min-h-screen bg-champagne"
       lang="he"
     >
+      {/* ייצוא תקופה לתורים — אדמין בלבד (משימה 10.2) */}
+      {session?.user?.role === "admin" && (
+        <div className="flex justify-end px-4 pt-4 sm:px-6">
+          <AppointmentsExport
+            defaultStart={formatInTimeZone(weekStart, ISRAEL_TZ, "yyyy-MM-dd")}
+            defaultEnd={formatInTimeZone(weekEnd, ISRAEL_TZ, "yyyy-MM-dd")}
+          />
+        </div>
+      )}
       <WeeklyCalendar
         initialAppointments={appointments}
         initialWeekStart={weekStart.toISOString()}
