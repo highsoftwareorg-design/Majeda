@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Frank_Ruhl_Libre, Assistant } from "next/font/google";
+import { Geist_Mono, David_Libre, Assistant } from "next/font/google";
 import "./globals.css";
 import { AccessibilityWidget } from "@/components/accessibility/AccessibilityWidget";
 import { buildA11yInlineScript } from "@/lib/a11y/preferences";
@@ -9,8 +9,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Frank Ruhl Libre — גופן הכותרות (עברית), לפי נספח א.7
-const frankRuhlLibre = Frank_Ruhl_Libre({
+// David Libre — גופן הכותרות (עברית): סריף עברי אוורירי ואלגנטי, חם ומזמין יותר
+// מ-Frank Ruhl Libre, בקו העריכתי של הדף (נספח א.7 — גופן כותרות עברי).
+const davidLibre = David_Libre({
   variable: "--font-heading",
   subsets: ["hebrew", "latin"],
   weight: ["400", "500", "700"],
@@ -46,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="he"
       dir="rtl"
-      className={`${frankRuhlLibre.variable} ${assistant.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${davidLibre.variable} ${assistant.variable} ${geistMono.variable} h-full antialiased`}
       // הסקריפט ה-inline מוסיף data-a11y-*/data-reduce-motion ל-<html> לפני ה-hydration —
       // אי-התאמה צפויה ומכוונת באלמנט הזה בלבד.
       suppressHydrationWarning

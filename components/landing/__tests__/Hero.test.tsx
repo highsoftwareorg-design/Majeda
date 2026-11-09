@@ -129,10 +129,10 @@ describe("Hero (tasks 2.12, 2.20)", () => {
     expect(wrapper?.className).toMatch(/(^|\s)overflow-hidden(\s|$)/);
     const img = wrapper?.querySelector("img");
     expect(img).not.toBeNull();
-    expect(HERO_IMAGE).toBe(STOCK_IMAGES.heroSteamRoom);
+    expect(HERO_IMAGE).toBe(STOCK_IMAGES.heroSkinMacro);
     expect(img).toHaveAttribute("alt", HERO_IMAGE.alt);
     expect(decodeURIComponent(img?.getAttribute("src") ?? "")).toContain(
-      "hero-steam-room-warm-light.webp"
+      "hero-skin-macro-warm.webp"
     );
     // priority: לא lazy, ו-fetchpriority גבוה (ב-Next 16 priority לבדו אינו מוסיף fetchpriority)
     expect(img).not.toHaveAttribute("loading", "lazy");

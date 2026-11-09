@@ -28,35 +28,27 @@ export interface StockImage {
 }
 
 export const STOCK_IMAGES = {
-  heroSteamRoom: {
-    src: "/images/stock/hero-steam-room-warm-light.webp",
-    width: 2400,
-    height: 1601,
-    alt: "חדר אדים מעוצב באבן כהה, עם ספסלים מוארים באור חם וקיר בדוגמה גאומטרית בגוני ברונזה בקצהו",
+  heroSkinMacro: {
+    src: "/images/stock/hero-skin-macro-warm.webp",
+    width: 1600,
+    height: 1067,
+    alt: "תצלום-על של עור חלק בגוון חם-זהוב, מרקם עדין וטבעי באור רך — ללא פנים",
     placeholder: true,
     role: "hero",
   },
-  treatmentHandsMassage: {
-    src: "/images/stock/treatment-hands-arm-massage.webp",
+  treatmentSkincareTextures: {
+    src: "/images/stock/treatment-skincare-textures.webp",
     width: 1600,
-    height: 2400,
-    alt: "ידיים של מטפלת מעסות בעדינות את זרועה של מטופלת, באור רך ובגוונים חמים",
+    height: 1244,
+    alt: "שלושה מרקמי טיפוח — ג'ל זהוב, קרם לבן ושמן שקוף — מונחים זה לצד זה על רקע בז' בהיר בתצלום-על",
     placeholder: true,
     role: "treatments",
   },
-  treatmentOilDrop: {
-    src: "/images/stock/treatment-oil-dropper-candle.webp",
+  aboutSerumDropper: {
+    src: "/images/stock/about-serum-dropper-gloved.webp",
     width: 1600,
-    height: 1067,
-    alt: "יד מחזיקה טפטפת שמן טיפוח מעל זרוע, ליד בקבוקוני שמן מזכוכית ענבר, נר דולק ופרחים על שולחן עץ",
-    placeholder: true,
-    role: "treatments",
-  },
-  aboutTreatmentRoom: {
-    src: "/images/stock/about-treatment-room-wood.webp",
-    width: 1600,
-    height: 2400,
-    alt: "חדר טיפולים שקט עם מיטת טיפול מכוסה במצעים בגוון טאופ-סגלגל, כיור מעוטר וחיפוי עץ חם",
+    height: 2397,
+    alt: "ידיים בכפפות לבנות מטפטפות סרום מטפטפת זכוכית מעל אמה, לצד בקבוקון ענבר ללא תווית — טיפול אסתטי, ללא פנים",
     placeholder: true,
     role: "about",
   },

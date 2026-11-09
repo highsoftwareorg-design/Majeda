@@ -124,7 +124,7 @@ describe("lib/landing/stock-images (task 2.19)", () => {
 
   it("has a hero image and accessor helpers", () => {
     expect(getStockImagesByRole("hero")).toHaveLength(1);
-    expect(getStockImage("heroSteamRoom")).toBe(STOCK_IMAGES.heroSteamRoom);
+    expect(getStockImage("heroSkinMacro")).toBe(STOCK_IMAGES.heroSkinMacro);
   });
 });
 

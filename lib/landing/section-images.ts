@@ -10,9 +10,9 @@ import { STOCK_IMAGES } from "@/lib/landing/stock-images";
  */
 export const SECTION_IMAGES = {
   /** טיפולים — תמונת אווירה אחת לסקשן כולו (לא תמונה לכל טיפול; לטבלת Treatment אין שדה תמונה). */
-  treatments: STOCK_IMAGES.treatmentOilDrop,
-  /** אודות — חלל הטיפול, ללא פנים. מוצג בנפרד מקשתות הצוות, במסגרת מלבנית ולא בקשת. */
-  about: STOCK_IMAGES.aboutTreatmentRoom,
+  treatments: STOCK_IMAGES.treatmentSkincareTextures,
+  /** אודות — טיפול אסתטי (טפטוף סרום בכפפות), ללא פנים. מוצג בנפרד מקשתות הצוות, במסגרת מלבנית. */
+  about: STOCK_IMAGES.aboutSerumDropper,
   /** מפריד הסקשנים היחיד (בין ההמלצות לאודות) — טקסטורה דקורטיבית. */
   divider: STOCK_IMAGES.textureCreamSmear,
 } as const;

@@ -158,6 +158,9 @@
   --type-eyebrow-tracking: 0.02em;
   --type-caption: 0.875rem; /* 14px — מטא-מידע (משך/מחיר/שם ממליצה) */
   --type-caption-leading: 1.5;
+  /* מספר אינדקס דקורטיבי (01/02/03) בכרטיסי הטיפולים — המשקל הקל ביותר הנטען (400), בגוון זהב */
+  --type-index: clamp(2rem, 3vw, 3.5rem); /* 32→56px */
+  --type-index-leading: 1;
 
   /* --- אורכי שורה (measure) --- */
   --measure-prose: 62ch; /* טקסט רץ: 60–75 תווים בדסקטופ */
@@ -244,6 +247,8 @@
   --text-eyebrow--letter-spacing: var(--type-eyebrow-tracking);
   --text-caption: var(--type-caption);
   --text-caption--line-height: var(--type-caption-leading);
+  --text-index: var(--type-index);
+  --text-index--line-height: var(--type-index-leading);
 
   --spacing-section: var(--spacing-section);
   --spacing-section-tight: var(--spacing-section-tight);

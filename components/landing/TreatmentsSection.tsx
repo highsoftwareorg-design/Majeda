@@ -26,7 +26,7 @@ function formatDuration(durationMinutes: number): string {
  * משימה 2.13 — יישום כיוון העיצוב "אטלייה נואר ושמפניה" (2.11):
  * - (2.13: רצועה כהה; הוחלף ב-2.21 — ראו למטה.)
  * - במקום ערכת כרטיסי shadcn זהים ("SaaS-card kit") — "תפריט טיפולים" של אטלייה:
- *   רשימה סמנטית (ul/li) המופרדת בקווי שיער בלבד, שם הטיפול בסריף (Frank Ruhl Libre)
+ *   רשימה סמנטית (ul/li) המופרדת בקווי שיער בלבד, שם הטיפול בסריף (font-heading)
  *   והמחיר בקצה השורה (inline-end) כמו בתפריט, תיאור ומשך בטקסט משני.
  * - אין hover על פריטי טקסט (hover שמור לתמונות בלבד, 2.11).
  * - מאפייני data-treatments* הם עוגנים יציבים לאנימציית stagger ב-2.16 (ממומשת ב-LandingMotion.tsx, לא כאן).
@@ -110,7 +110,7 @@ export async function TreatmentsSection() {
               {/* מספר אינדקס דקורטיבי בגוון הזהב, בצד ההתחלה של הכרטיס */}
               <span
                 aria-hidden="true"
-                className="font-heading text-h2 font-medium leading-none tabular-nums text-gold-deep"
+                className="font-heading text-index font-normal tabular-nums text-gold-deep"
               >
                 {String(index + 1).padStart(2, "0")}
               </span>
