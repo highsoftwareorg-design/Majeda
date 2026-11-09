@@ -1,7 +1,16 @@
+import { Fragment } from "react";
 import Image from "next/image";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { HERO_CONTENT, HERO_IMAGE } from "@/lib/landing/hero-content";
+
+/** תגיות השירותים שמוצגות מתחת להבטחה (מופרדות בנקודה אמצעית). */
+const SERVICE_TAGS = ["פנים", "גוף", "שיער", "ציפורניים"];
+
+/** הכותרת מפוצלת למילה אחרונה (מוצגת נטוייה ב-em) ולשאר הטקסט. */
+const HERO_TITLE_WORDS = HERO_CONTENT.title.split(" ");
+const HERO_TITLE_LEAD = HERO_TITLE_WORDS.slice(0, -1).join(" ");
+const HERO_TITLE_LAST = HERO_TITLE_WORDS[HERO_TITLE_WORDS.length - 1];
 
 /**
  * אזור הפתיחה (Hero) של דף הנחיתה.
@@ -66,12 +75,15 @@ export function Hero() {
           data-hero-copy
           className="flex flex-col items-center gap-6 text-center lg:items-start lg:justify-self-stretch lg:text-start"
         >
+          <p className="font-body text-xs font-semibold uppercase tracking-widest text-gold">
+            00 / ברוכות הבאות
+          </p>
           <h1
             id="hero-title"
             data-hero-title
             className="measure-heading font-heading text-display font-medium text-gold-pale"
           >
-            {HERO_CONTENT.title}
+            {HERO_TITLE_LEAD} <em className="italic">{HERO_TITLE_LAST}</em>
           </h1>
           <span data-hero-rule aria-hidden="true" className="rule-gilded" />
           <p
@@ -80,15 +92,32 @@ export function Hero() {
           >
             {HERO_CONTENT.promise}
           </p>
+          <p
+            data-hero-tags
+            className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 font-body text-xs font-semibold uppercase tracking-widest text-champagne lg:justify-start"
+          >
+            {SERVICE_TAGS.map((tag, index) => (
+              <Fragment key={tag}>
+                {index > 0 && (
+                  <span aria-hidden="true" className="text-gold">
+                    ·
+                  </span>
+                )}
+                <span>{tag}</span>
+              </Fragment>
+            ))}
+          </p>
           <Button
             asChild
             size="lg"
             data-hero-cta
             className="mt-2 h-12 min-w-44 bg-gold px-8 text-ink shadow-glow duration-(--duration-quick) ease-luxe hover:bg-gold-light focus-visible:ring-3 focus-visible:ring-gold-light focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
           >
-            <a href={HERO_CONTENT.ctaHref}>
+            <a href={HERO_CONTENT.ctaHref} className="inline-flex items-center gap-2">
               {/* גודל הגופן על span פנימי: cn מפרש text-body כצבע ומוחק את text-ink אם שניהם באותו className */}
               <span className="text-body font-semibold">{HERO_CONTENT.ctaLabel}</span>
+              {/* חץ גלילה לעוגן (#booking) — קישוט בלבד */}
+              <span aria-hidden="true" className="text-body font-semibold">↓</span>
             </a>
           </Button>
         </div>

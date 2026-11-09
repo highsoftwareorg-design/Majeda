@@ -66,11 +66,15 @@ export async function TreatmentsSection() {
       <div className="mx-auto flex w-full max-w-landing flex-col gap-stack">
         <div className="grid w-full grid-cols-1 items-end gap-stack lg:grid-cols-[5fr_7fr] lg:gap-grid">
           <header data-section-heading className="flex flex-col items-start gap-6">
+            {/* eyebrow ממוספר — אזור טקסט על champagne-wash, לכן gold-deep (8.50:1) ולא gold */}
+            <p className="font-body text-xs font-semibold uppercase tracking-widest text-gold-deep">
+              01 / הטיפולים
+            </p>
             <h2
               id="treatments-heading"
               className="measure-heading font-heading text-h2 font-medium text-charcoal"
             >
-              הטיפולים שלנו
+              הטיפולים <em className="italic">שלנו</em>
             </h2>
             <span aria-hidden="true" className="rule-gilded" />
           </header>
@@ -97,12 +101,19 @@ export async function TreatmentsSection() {
           data-treatments-list
           className="grid w-full grid-cols-1 gap-x-grid border-t border-hairline-light lg:grid-cols-2"
         >
-          {treatments.map((treatment) => (
+          {treatments.map((treatment, index) => (
             <li
               key={treatment.id}
               data-treatment-item
               className="hover-gilded-line flex min-w-0 flex-col gap-3 border-b border-hairline-light py-8"
             >
+              {/* מספר אינדקס דקורטיבי בגוון הזהב, בצד ההתחלה של הכרטיס */}
+              <span
+                aria-hidden="true"
+                className="font-heading text-h2 font-medium leading-none tabular-nums text-gold-deep"
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
                 <h3 className="min-w-0 font-heading text-h3 font-bold text-charcoal">
                   {treatment.name}

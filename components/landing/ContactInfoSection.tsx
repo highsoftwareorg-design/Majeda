@@ -79,11 +79,14 @@ export function ContactInfoSection() {
     >
       <div className="mx-auto flex w-full max-w-landing flex-col gap-stack">
         <header data-section-heading className="flex flex-col items-start gap-6">
+          <p className="font-body text-xs font-semibold uppercase tracking-widest text-gold">
+            05 / בואו לבקר
+          </p>
           <h2
             id="contact-info-heading"
             className="measure-heading font-heading text-h2 font-medium text-gold-pale"
           >
-            פרטי קשר
+            פרטי <em className="italic">קשר</em>
           </h2>
           <span aria-hidden="true" className="rule-gilded" />
         </header>

@@ -56,11 +56,14 @@ export function AboutSection() {
       <div className="mx-auto grid w-full max-w-landing grid-cols-1 gap-stack lg:grid-cols-[7fr_5fr] lg:items-center lg:gap-x-grid">
         <div data-about-copy className="flex min-w-0 flex-col items-start gap-6 lg:col-start-1 lg:row-start-1">
           <header data-section-heading className="flex flex-col items-start gap-6">
+            <p className="font-body text-xs font-semibold uppercase tracking-widest text-gold-deep">
+              02 / אודות MAJIDA
+            </p>
             <h2
               id="about-heading"
               className="measure-heading font-heading text-h2 font-medium text-charcoal"
             >
-              אודות המרפאה והצוות
+              אודות המרפאה <em className="italic">והצוות</em>
             </h2>
             <span aria-hidden="true" className="rule-gilded" />
           </header>

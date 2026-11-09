@@ -49,26 +49,38 @@ export function TestimonialsSection() {
       aria-labelledby="testimonials-heading"
     >
       <div className="mx-auto flex w-full max-w-landing flex-col gap-stack">
-        <header data-section-heading className="flex flex-col items-start">
+        <header data-section-heading className="flex flex-col items-start gap-6">
+          <p className="font-body text-xs font-semibold uppercase tracking-widest text-gold-deep">
+            04 / מה אומרים לקוחות
+          </p>
           <h2
             id="testimonials-heading"
             className="measure-heading font-heading text-h2 font-medium text-charcoal"
           >
-            מה הלקוחות שלנו אומרות
+            מה הלקוחות שלנו <em className="italic">אומרות</em>
           </h2>
+          <span aria-hidden="true" className="rule-gilded" />
         </header>
         <div className="grid w-full grid-cols-1 gap-x-grid gap-y-stack sm:grid-cols-2">
           {TESTIMONIALS.map((testimonial) => (
             <figure
               key={testimonial.id}
               data-testimonial-item
-              className="flex min-w-0 flex-col gap-4 border-s border-gold-dark ps-6"
+              className="flex min-w-0 flex-col gap-2 border-s border-gold-dark ps-6"
             >
+              {/* גליף הציטוט הפותח — קישוט בלבד (gold-pale על sand), מוסתר מקורא המסך */}
+              <span
+                aria-hidden="true"
+                className="font-heading text-display leading-none font-medium text-gold-pale"
+              >
+                &ldquo;
+              </span>
               <blockquote className="measure-prose font-heading text-lead text-charcoal">
-                &rdquo;{testimonial.quote}&rdquo;
+                {testimonial.quote}&rdquo;
               </blockquote>
-              <figcaption className="text-caption font-semibold text-gold-deep">
-                — {testimonial.name}
+              <figcaption className="mt-2 flex flex-col gap-1">
+                <span className="text-caption font-bold text-charcoal">— {testimonial.name}</span>
+                <span className="text-caption text-taupe">לקוחה של המרפאה</span>
               </figcaption>
             </figure>
           ))}

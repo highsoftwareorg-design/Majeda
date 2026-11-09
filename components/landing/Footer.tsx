@@ -49,15 +49,20 @@ export function Footer() {
         </div>
 
         <nav aria-label="קישורים משפטיים">
-          <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-1 text-body text-champagne-muted">
-            {LEGAL_LINKS.map((link) => (
-              <li key={link.href}>
+          <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-body text-champagne-muted">
+            {LEGAL_LINKS.map((link, index) => (
+              <li key={link.href} className="flex items-center gap-x-4">
                 <Link
                   href={link.href}
                   className="inline-flex min-h-11 items-center px-1 transition-colors duration-(--duration-quick) ease-luxe hover:text-gold-pale focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
                 >
                   {link.label}
                 </Link>
+                {index < LEGAL_LINKS.length - 1 && (
+                  <span aria-hidden="true" className="text-gold">
+                    ✳
+                  </span>
+                )}
               </li>
             ))}
           </ul>
