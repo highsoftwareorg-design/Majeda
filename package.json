@@ -17,6 +17,7 @@
     "seed:treatments": "dotenv -e .env.local -- node prisma/seed-treatments.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1165.0",
     "@gsap/react": "^2.1.2",
     "@prisma/client": "^6.19.3",
     "@vercel/blob": "^2.8.2",
