@@ -143,7 +143,7 @@ describe("2.21 (tester) — light-band tokens beyond body text", () => {
 describe("2.21 (tester) — floating WhatsApp button over the new light bands", () => {
   it("its focus indicator reaches ≥3:1 against every light band it floats over (WCAG 1.4.11 / 2.4.7)", () => {
     render(<WhatsAppFloatingButton />);
-    const link = screen.getByRole("link", { name: "צור קשר בוואטסאפ (בקרוב)" });
+    const link = screen.getByRole("link", { name: "צור קשר בוואטסאפ" });
     const cls = (link.getAttribute("class") ?? "").split(/\s+/);
     const outline = cls.find((c) => /^focus-visible:outline-(gold|gold-light|gold-deep|gold-dark|ink|charcoal)$/.test(c));
     const ring = cls.find((c) => /^focus-visible:ring-(gold|gold-light|gold-deep|gold-dark|ink|charcoal)$/.test(c));

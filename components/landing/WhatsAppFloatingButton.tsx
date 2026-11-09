@@ -1,8 +1,7 @@
 /**
- * כפתור WhatsApp צף — עיצוב בלבד (משימה 2.2).
- * TODO: אינטגרציה פונקציונלית אמיתית ל-WhatsApp Business Platform
- * (Cloud API / BSP, SRS §12.2) אינה בתחום המשימה הנוכחית ותתווסף בתכנון נפרד.
- * כרגע הכפתור אינו מוביל לשום צ'אט אמיתי (href="#").
+ * כפתור WhatsApp צף.
+ * מקשר ל-wa.me של מספר הקליניקה (קישור click-to-chat; אינו דורש את WhatsApp Business
+ * Platform). אינטגרציית ה-Cloud API/BSP לשליחת תזכורות/מעקב (SRS §12.2) היא מסלול נפרד.
  *
  * 2.17: האייקון ב-text-ink (ink על whatsapp 9.92:1) במקום לבן (1.98:1 — מתחת ל-3:1 של
  * WCAG 1.4.11 לגרפיקה). הכפתור אינו מונפש ע"י GSAP (LandingMotion לא בוחר אותו).
@@ -20,9 +19,11 @@
 export function WhatsAppFloatingButton() {
   return (
     <a
-      href="#"
-      aria-label="צור קשר בוואטסאפ (בקרוב)"
-      title="צור קשר בוואטסאפ (בקרוב)"
+      href="https://wa.me/972507880006"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="צור קשר בוואטסאפ"
+      title="צור קשר בוואטסאפ"
       className="fixed bottom-5 end-5 z-50 flex size-14 items-center justify-center rounded-full bg-whatsapp text-ink shadow-lg shadow-black/30 transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink"
     >
       <svg

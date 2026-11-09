@@ -56,13 +56,19 @@ describe("ContactInfoSection — 2.14 redesign regression", () => {
     expect(section.getAttribute("aria-labelledby")).toBe(h2s[0].id);
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent?.trim())
-    ).toEqual(["כתובת", "שעות פעילות", "עקבו אחרינו"]);
+    ).toEqual(["טלפון", "כתובת", "שעות פעילות", "עקבו אחרינו"]);
     expect(section.querySelectorAll("h1, h4, h5, h6")).toHaveLength(0);
+  });
+
+  it("renders the clinic phone as a tel: link", () => {
+    render(<ContactInfoSection />);
+    const phone = screen.getByRole("link", { name: "050-788-0006" });
+    expect(phone).toHaveAttribute("href", "tel:+972507880006");
   });
 
   it("keeps exactly two social links with identical href/aria-label/target/rel", () => {
     const { container } = render(<ContactInfoSection />);
-    const links = [...container.querySelectorAll("a")];
+    const links = [...container.querySelector("[data-social-links]")!.querySelectorAll("a")];
     expect(
       links.map((a) => [
         a.getAttribute("href"),

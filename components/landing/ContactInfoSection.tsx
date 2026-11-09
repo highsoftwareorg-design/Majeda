@@ -5,7 +5,7 @@
  */
 
 import type { SVGProps } from "react";
-import { Clock, MapPin } from "lucide-react";
+import { Clock, MapPin, Phone } from "lucide-react";
 
 /**
  * אייקוני רשתות חברתיות (Instagram/Facebook) כ-SVG מוטבע,
@@ -92,7 +92,23 @@ export function ContactInfoSection() {
         </header>
 
         {/* ניגודיות על ink-raised: gold-pale 15.46, champagne-muted 8.56, gold (אייקונים) 8.50 */}
-        <div className="grid w-full grid-cols-1 gap-x-grid md:grid-cols-3">
+        <div className="grid w-full grid-cols-1 gap-x-grid sm:grid-cols-2 lg:grid-cols-4">
+          <div
+            data-contact-item
+            className="flex min-w-0 flex-col gap-4 border-t border-hairline-dark py-8"
+          >
+            <h3 className="flex items-center gap-3 font-heading text-h3 font-bold text-gold-pale">
+              <Phone aria-hidden="true" className="size-5 shrink-0 text-gold" />
+              טלפון
+            </h3>
+            <a
+              href="tel:+972507880006"
+              className="self-start text-body text-champagne-muted tabular-nums transition-colors duration-(--duration-quick) ease-luxe hover:text-gold-pale focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
+            >
+              <bdi>050-788-0006</bdi>
+            </a>
+          </div>
+
           <div
             data-contact-item
             className="flex min-w-0 flex-col gap-4 border-t border-hairline-dark py-8"
@@ -133,7 +149,7 @@ export function ContactInfoSection() {
             <h3 className="font-heading text-h3 font-bold text-gold-pale">
               עקבו אחרינו
             </h3>
-            <div className="flex items-center gap-3">
+            <div data-social-links className="flex items-center gap-3">
               {SOCIAL_LINKS.map(({ id, label, href, Icon }) => (
                 <a
                   key={id}
