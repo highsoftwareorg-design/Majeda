@@ -26,7 +26,7 @@ describe("ContactInfoSection", () => {
     const instagramLink = screen.getByRole("link", { name: "אינסטגרם" });
     const facebookLink = screen.getByRole("link", { name: "פייסבוק" });
 
-    expect(instagramLink).toHaveAttribute("href", "https://instagram.com/majida.beaute");
+    expect(instagramLink).toHaveAttribute("href", "https://instagram.com/majidabcenter");
     expect(facebookLink).toHaveAttribute("href", "https://facebook.com/majida.beaute");
   });
 });
@@ -71,7 +71,7 @@ describe("ContactInfoSection — 2.14 redesign regression", () => {
         a.getAttribute("rel"),
       ])
     ).toEqual([
-      ["https://instagram.com/majida.beaute", "אינסטגרם", "_blank", "noopener noreferrer"],
+      ["https://instagram.com/majidabcenter", "אינסטגרם", "_blank", "noopener noreferrer"],
       ["https://facebook.com/majida.beaute", "פייסבוק", "_blank", "noopener noreferrer"],
     ]);
     links.forEach((a) => expect(a).toHaveClass("size-11"));

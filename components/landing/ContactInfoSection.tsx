@@ -39,7 +39,7 @@ const SOCIAL_LINKS = [
   {
     id: "instagram",
     label: "אינסטגרם",
-    href: "https://instagram.com/majida.beaute",
+    href: "https://instagram.com/majidabcenter",
     Icon: InstagramIcon,
   },
   {
