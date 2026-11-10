@@ -27,6 +27,7 @@ vi.mock("@/lib/db/treatments", () => ({
 
 import { Hero } from "@/components/landing/Hero";
 import { TreatmentsSection } from "@/components/landing/TreatmentsSection";
+import { TreatmentMenuSection } from "@/components/landing/TreatmentMenuSection";
 import { BeforeAfterSection, BEFORE_AFTER_COMING_SOON } from "@/components/landing/BeforeAfterSection";
 import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { SectionDivider } from "@/components/landing/SectionDivider";
@@ -45,7 +46,7 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 /** הסדר בפועל ב-app/page.tsx — הבדיקה משווה אליו כדי שהקומפוזיציה כאן לא "תסטה" מהדף. */
 const PAGE_ORDER = [
   "Hero",
-  "TreatmentsSection",
+  "TreatmentMenuSection",
   "BeforeAfterSection",
   "TestimonialsSection",
   "SectionDivider",
@@ -57,13 +58,12 @@ const PAGE_ORDER = [
 
 async function renderLandingPage() {
   getTreatmentsMock.mockResolvedValue(FAKE_TREATMENTS);
-  const treatments = await TreatmentsSection();
   const contactForm = await ContactFormSectionContainer();
   return render(
     <main dir="rtl" lang="he" className="flex min-h-screen w-full flex-col bg-ink text-champagne">
       <LandingMotion />
       <Hero />
-      {treatments}
+      <TreatmentMenuSection />
       <BeforeAfterSection />
       <TestimonialsSection />
       <SectionDivider />

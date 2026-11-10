@@ -57,7 +57,18 @@ export async function submitContactForm(
 
   const phone = normalizeIsraeliPhone(values.phone);
   const { firstName, lastName } = splitFullName(values.name);
-  const note = values.note.trim();
+
+  // "טיפול מבוקש" מגיע כעת כשם טיפול מתפריט השירותים הסטטי (TREATMENT_MENU), ולא כמזהה
+  // Treatment ב-DB. לכן איננו שומרים אותו בשדה ה-FK requestedTreatmentId (נשאר null עבור
+  // לידים מהנחיתה), אלא מוסיפים אותו לראש ההערה כך שהקליניקה רואה מה הלקוחה ביקשה.
+  const selectedTreatment =
+    values.treatmentId && values.treatmentId !== "other" ? values.treatmentId.trim() : null;
+  const userNote = values.note.trim();
+  const note =
+    [selectedTreatment ? `טיפול מבוקש: ${selectedTreatment}` : null, userNote || null]
+      .filter(Boolean)
+      .join("\n") || null;
+  const requestedTreatmentId = null;
   const marketingConsentChannel = values.marketingConsent ? "landing_page" : "none";
   const marketingConsentAt = values.marketingConsent ? new Date() : null;
 
@@ -69,7 +80,7 @@ export async function submitContactForm(
         firstName,
         lastName,
         note: note || null,
-        requestedTreatmentId: values.treatmentId || null,
+        requestedTreatmentId,
         marketingConsentChannel,
         marketingConsentAt,
         source: "landing_page",
@@ -78,7 +89,7 @@ export async function submitContactForm(
         firstName,
         lastName,
         note: note || null,
-        requestedTreatmentId: values.treatmentId || null,
+        requestedTreatmentId,
         marketingConsentChannel,
         marketingConsentAt,
         source: "landing_page",

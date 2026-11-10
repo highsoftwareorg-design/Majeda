@@ -107,11 +107,11 @@ describe("2.21 (tester) — full page + accessibility widget, axe", () => {
 });
 
 describe("2.21 (tester) — light-band tokens beyond body text", () => {
-  it("the treatments loading skeleton in app/page.tsx sits on the light band with light-surface text only", () => {
-    const src = read("app/page.tsx");
-    const fn = src.slice(src.indexOf("function TreatmentsSectionFallback"), src.indexOf("function ContactFormSectionFallback"));
-    expect(fn).toMatch(/bg-champagne-wash/);
-    expect(fn).not.toMatch(/text-(gold-pale|champagne-muted|champagne|gold|gold-light)(?=[\s"])/);
+  it("the merged treatments menu section sits on the light band with light-surface text only", () => {
+    // סקשן הטיפולים המוזג (TreatmentMenuSection) החליף את TreatmentsSection+skeleton בדף.
+    const src = read("components/landing/TreatmentMenuSection.tsx");
+    expect(src).toMatch(/bg-champagne-wash/);
+    expect(src).not.toMatch(/text-(gold-pale|champagne-muted|champagne|gold|gold-light)(?=[\s"])/);
     // taupe על קצה ה-sand של השטיפה — 5.18:1
     expect(ratio(token("taupe"), token("sand"))).toBeGreaterThanOrEqual(4.5);
   });

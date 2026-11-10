@@ -92,7 +92,9 @@ describe("ContactFormSection — validation a11y (2.15)", () => {
     expect(phone).toHaveAttribute("placeholder", "050-1234567");
     expect(screen.getByLabelText("טיפול מבוקש")).toHaveAttribute("name", "treatmentId");
     expect(screen.getByLabelText("הערה")).toHaveAttribute("name", "note");
-    for (const el of [name, phone, screen.getByLabelText("טיפול מבוקש"), screen.getByLabelText("הערה")]) {
+    const treatmentSelect = screen.getByLabelText("טיפול מבוקש");
+    expect(within(treatmentSelect).getByRole("option", { name: "אחר (נא פרטו בהערה)" })).toBeInTheDocument();
+    for (const el of [name, phone, treatmentSelect, screen.getByLabelText("הערה")]) {
       expect(el.className).toContain("text-(length:--type-body)");
       expect(el.className).toContain("md:text-(length:--type-body)");
       expect(el.className).not.toMatch(/(^|\s)md:text-sm(\s|$)/);

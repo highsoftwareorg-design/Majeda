@@ -28,11 +28,11 @@ export interface StockImage {
 }
 
 export const STOCK_IMAGES = {
-  heroSkinMacro: {
-    src: "/images/stock/hero-skin-macro-warm.webp",
+  heroClinicTreatment: {
+    src: "/images/stock/hero-clinic-treatment.webp",
     width: 1600,
     height: 1067,
-    alt: "תצלום-על של עור חלק בגוון חם-זהוב, מרקם עדין וטבעי באור רך — ללא פנים",
+    alt: "קוסמטיקאית בחלוק לבן מעבירה טיפול פנים במכשיר ללקוחה השרועה על מיטת טיפול בקליניקת יופי — תמונת אווירה",
     placeholder: true,
     role: "hero",
   },

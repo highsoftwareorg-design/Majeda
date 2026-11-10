@@ -20,8 +20,8 @@ const HERO_TITLE_LAST = HERO_TITLE_WORDS[HERO_TITLE_WORDS.length - 1];
  *
  * משימה 2.12 — יישום כיוון העיצוב "אטלייה נואר ושמפניה" (2.11):
  * - הלוגו מוצג בתוך מסגרת הקשת (frame-arch) — מוטיב החתימה של הדף, כ"מראת אטלייה".
- *   מילוי הקשת הוא ink, זהה לרקע הגרפי של קובץ הלוגו המלא, כך שהריבוע של ה-SVG
- *   נבלע בקשת ונראה כדיוקן בתוך המראה.
+ *   מילוי הקשת הוא זכוכית חלבית (ink/45 + backdrop-blur) והלוגו בגרסה השקופה, כך שתמונת
+ *   ה-Hero נראית רכות דרך המראה מאחורי סימן הזהב (במקום ריבוע ink אטום).
  * - נייד: עמודה אחת ממורכזת (קשת → כותרת → קו מוזהב → הבטחה → CTA).
  *   דסקטופ (lg): קומפוזיציה א-סימטרית בשתי עמודות — הטקסט בצד ההתחלה (ימין ב-RTL)
  *   ומיושר ל-start, הקשת בצד הסיום. כל הריווחים logical/סימטריים.
@@ -65,10 +65,14 @@ export function Hero() {
         {/* מסגרת הקשת — מוטיב החתימה. בדסקטופ עוברת לצד הסיום (שמאל ב-RTL). */}
         <div
           data-hero-media
-          className="frame-arch frame-hairline-dark flex w-64 items-center justify-center bg-ink shadow-glow sm:w-72 lg:order-last lg:w-full lg:max-w-sm"
+          className="frame-arch frame-hairline-dark flex w-64 items-center justify-center bg-ink/45 shadow-glow backdrop-blur-sm sm:w-72 lg:order-last lg:w-full lg:max-w-sm"
         >
-          {/* The SVG artwork fills only ~60% of its square canvas; scale up, frame-arch clips the matching ink margin */}
-          <Logo variant="full" size={384} fluid priority={false} className="scale-[1.4]" />
+          {/* זכוכית חלבית: רקע ink/45 + backdrop-blur, והלוגו בגרסה השקופה (סימן זהב+לבן בלבד),
+              כך שתמונת ה-Hero נראית בבירור (מטושטשת רכות) דרך הקשת מאחורי הסימן. ה-SVG ממלא
+              ~60% מהבד — scale-[1.4] מגדיל אותו, ו-frame-arch חותך את השוליים השקופים.
+              ניגודיות הזהב נשמרת: ink/45 מעל ה-scrim (68% ink על התמונה) נותן גב של ~82% ink
+              אפקטיבי, כך שהזהב נשאר מעל 3:1 (WCAG 1.4.11) גם מעל אזורים בהירים בתמונה. */}
+          <Logo variant="transparent" size={384} fluid priority={false} className="scale-[1.4]" />
         </div>
 
         <div

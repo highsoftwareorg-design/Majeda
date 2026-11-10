@@ -14,6 +14,7 @@ import {
   type ContactFormValues,
 } from "@/lib/validations/contact";
 import { submitContactForm } from "@/lib/actions/contact";
+import { TREATMENT_MENU } from "@/lib/landing/treatment-menu";
 
 export type ContactFormTreatmentOption = {
   id: string;
@@ -21,7 +22,11 @@ export type ContactFormTreatmentOption = {
 };
 
 type ContactFormSectionProps = {
-  treatments: ContactFormTreatmentOption[];
+  /**
+   * לא בשימוש יותר — אפשרויות "טיפול מבוקש" נטענות מתפריט השירותים הסטטי
+   * (`TREATMENT_MENU`) ולא מה-DB. הפרופ נשאר אופציונלי לתאימות לאחור בלבד.
+   */
+  treatments?: ContactFormTreatmentOption[];
 };
 
 const INITIAL_VALUES: ContactFormValues = {
@@ -232,14 +237,21 @@ export function ContactFormSection({ treatments }: ContactFormSectionProps) {
                     treatmentId: event.target.value,
                   }))
                 }
-                className={`h-12 w-full min-w-0 appearance-none border pe-11 outline-none transition-colors [&>option]:bg-ink-elevated [&>option]:text-champagne ${FIELD_CLASS}`}
+                className={`h-12 w-full min-w-0 appearance-none border pe-11 outline-none transition-colors [&>optgroup]:bg-ink-elevated [&>optgroup]:font-semibold [&>optgroup]:text-gold [&_option]:bg-ink-elevated [&_option]:font-normal [&_option]:text-champagne ${FIELD_CLASS}`}
               >
+                {/* האפשרויות נטענות מתפריט השירותים הסטטי (TREATMENT_MENU), מקובצות לפי קטגוריה.
+                    הערך הוא שם הטיפול (לא מזהה DB); הוא נשמר בהערת הליד בצד השרת. */}
                 <option value="">בחרו טיפול (אופציונלי)</option>
-                {treatments.map((treatment) => (
-                  <option key={treatment.id} value={treatment.id}>
-                    {treatment.name}
-                  </option>
+                {TREATMENT_MENU.map((category) => (
+                  <optgroup key={category.id} label={category.title}>
+                    {category.items.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
+                <option value="other">אחר (נא פרטו בהערה)</option>
               </select>
               {/* חץ זהב בצד הסיום (שמאל ב-RTL); gold על ink-elevated 7.25:1 */}
               <ChevronDown

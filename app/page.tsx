@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Hero } from "@/components/landing/Hero";
-import { TreatmentsSection } from "@/components/landing/TreatmentsSection";
+import { TreatmentMenuSection } from "@/components/landing/TreatmentMenuSection";
 import { BeforeAfterSection } from "@/components/landing/BeforeAfterSection";
 import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { SectionDivider } from "@/components/landing/SectionDivider";
@@ -12,24 +12,6 @@ import { Footer } from "@/components/landing/Footer";
 import { WhatsAppFloatingButton } from "@/components/landing/WhatsAppFloatingButton";
 import { LandingMotion } from "@/components/landing/LandingMotion";
 import { LandingMotionSectionReady } from "@/components/landing/LandingMotionSectionReady";
-
-/**
- * שלד טעינה לסקשן הטיפולים, מוצג בזמן ש-TreatmentsSection שולף נתונים מה-DB.
- * נדרש כדי לאפשר Prerendering של ה-shell הסטטי של העמוד (Next.js Cache Components).
- */
-function TreatmentsSectionFallback() {
-  return (
-    <section
-      dir="rtl"
-      className="flex w-full flex-col items-center justify-center gap-4 bg-champagne-wash px-gutter py-section text-charcoal"
-      aria-busy="true"
-      aria-live="polite"
-    >
-      {/* משימה 2.21: אותה רצועה בהירה כמו הסקשן עצמו (taupe על champagne/sand 5.85/5.18) */}
-      <p className="text-lead text-taupe">טוען טיפולים...</p>
-    </section>
-  );
-}
 
 /**
  * שלד טעינה לטופס השארת הפרטים, מוצג בזמן ש-ContactFormSectionContainer
@@ -97,11 +79,7 @@ export default function Home() {
       {/* משימה 2.16: מתזמר אנימציות (Client, span מוסתר יחיד; לא עוטף את הסקשנים) */}
       <LandingMotion />
       <Hero />
-      <Suspense fallback={<TreatmentsSectionFallback />}>
-        <LandingMotionSectionReady section="treatments">
-          <TreatmentsSection />
-        </LandingMotionSectionReady>
-      </Suspense>
+      <TreatmentMenuSection />
       <BeforeAfterSection />
       <TestimonialsSection />
       <SectionDivider />

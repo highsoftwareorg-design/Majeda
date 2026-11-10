@@ -19,4 +19,4 @@ export const HERO_CONTENT = {
 } as const;
 
 /** תמונת הרקע של ה-Hero — ממקור הנתונים היחיד של 2.19 (ללא נתיב/alt קשיחים ברכיב). */
-export const HERO_IMAGE = STOCK_IMAGES.heroSkinMacro;
+export const HERO_IMAGE = STOCK_IMAGES.heroClinicTreatment;

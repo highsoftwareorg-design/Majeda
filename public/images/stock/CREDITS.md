@@ -10,6 +10,7 @@
 - רישיון Unsplash אינו כולל אישור שימוש של מצולמים (model release) ואינו מכסה סימני מסחר. לכן נפסלו תמונות שהופיעו בהן לוגו או מותג.
 - תיקון (2026-11-05): `treatment-oil-drop-hands.webp` (Christin Hume, `0MoF-Fe0w0A`) הוסרה, כי על בקבוק הענבר נראה מותג של צד שלישי (dōTERRA). במקומה נבחרה `treatment-oil-dropper-candle.webp`: בקבוקונים בלי תווית ובלי פנים. התמונה החדשה לא נחתכה ולא טושטשה.
 - עדכון (2026-11-10): הוחלף הכיוון מספא/עיסוי לקליניקת יופי/אסתטיקה. הוסרו `hero-steam-room-warm-light.webp`, `treatment-hands-arm-massage.webp`, `treatment-oil-dropper-candle.webp` ו-`about-treatment-room-wood.webp` (חדר אדים, עיסוי, מיטת עיסוי). במקומן: תקריב עור (hero), מרקמי טיפוח (treatments), וטפטוף סרום בכפפות (about) — כולן ללא פנים וללא מותג, נבדקו חזותית.
+- עדכון (2026-11-10, ב'): תמונת ה-Hero הוחלפה לפי בחירת המשתמשת ל"קוסמטיקאית מעבירה טיפול פנים" — `hero-clinic-treatment.webp` (מטפלת בחלוק לבן עם מכשיר טיפול פנים ולקוחה על מיטת טיפול). נבדקה חזותית: ללא לוגו/טקסט מותג. **אזהרת שימוש:** בתמונה נראים פנים של דגמנית סטוק — רישיון Unsplash אינו כולל אישור מצולם (model release). התמונה היא אילוסטרטיבית בלבד; אין להציגה ככתוביות כ"צוות הקליניקה" או כ"לקוחה אמיתית/תוצאה", ויש להחליפה בצילום אמיתי מהקליניקה לפני פרודקשן. נפסלו חלופות עם שמות עסק/מותג במטא-דאטה (Glow Up Med Spa, Lalana, Eternia, Bandi Cosmetics).
 - תמונות Unsplash+ (בתשלום, ברישיון שונה) נפסלו. נבחרו רק תמונות שבדף שלהן מופיע "Free to use under the Unsplash License".
 
 ## רישיון
@@ -23,7 +24,7 @@
 
 | קובץ | URL מקור | צלם | רישיון | תאריך בדיקה |
 | --- | --- | --- | --- | --- |
-| hero-skin-macro-warm.webp | https://unsplash.com/photos/oSHy8iUzMRk | engin akyurt | Unsplash License | 2026-11-10 |
+| hero-clinic-treatment.webp | https://unsplash.com/photos/HtXyytr9304 | Look Studio (lookphoto) | Unsplash License | 2026-11-10 |
 | treatment-skincare-textures.webp | https://unsplash.com/photos/2tcm5faS9ig | ibnu ihza | Unsplash License | 2026-11-10 |
 | about-serum-dropper-gloved.webp | https://unsplash.com/photos/8BMr4l_2hgY | Amplitude Magazin | Unsplash License | 2026-11-10 |
 | product-serum-gold-dropper.webp | https://unsplash.com/photos/clear-glass-dropper-bottle-with-gold-cap-and-label-x0Opr053RHg | Avtar Singh | Unsplash License | 2026-11-05 |
