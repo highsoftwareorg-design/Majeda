@@ -5,22 +5,10 @@
  * בסביבת ייצור — שומר ב-R2 ומעדכן את שדה pdfStorageKey ב-SignedConsent.
  */
 
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/db/prisma';
 import { generateConsentPdf } from './pdf';
-
-function getR2Client(): S3Client | null {
-  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
-  if (!accountId) return null;
-  return new S3Client({
-    region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ?? '',
-      secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? '',
-    },
-  });
-}
+import { getR2Client, getR2Bucket } from './r2';
 
 export async function saveConsentPdf(signedConsentId: string): Promise<string> {
   const client = getR2Client();
@@ -42,7 +30,7 @@ export async function saveConsentPdf(signedConsentId: string): Promise<string> {
   if (!consent) throw new Error(`SignedConsent not found: ${signedConsentId}`);
 
   const key = `consents/${consent.clientId}/${signedConsentId}.pdf`;
-  const bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME ?? 'majeda-files';
+  const bucket = getR2Bucket();
 
   await client.send(
     new PutObjectCommand({

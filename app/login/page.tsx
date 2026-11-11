@@ -16,7 +16,7 @@ export default async function LoginPage({
   const { callbackUrl, error } = await searchParams;
 
   if (session) {
-    redirect(callbackUrl ?? "/clients");
+    redirect(callbackUrl ?? "/dashboard");
   }
 
   async function authenticate(formData: FormData) {
@@ -30,7 +30,7 @@ export default async function LoginPage({
       await signIn("credentials", {
         email,
         password,
-        redirectTo: typeof target === "string" && target ? target : "/clients",
+        redirectTo: typeof target === "string" && target ? target : "/dashboard",
       });
     } catch (err) {
       // NEXT_REDIRECT is thrown by Auth.js on success — let it propagate.

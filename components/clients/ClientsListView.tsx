@@ -27,6 +27,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { NewClientDialog } from "@/components/clients/NewClientDialog";
+import { ArchivedClientsView } from "@/components/clients/ArchivedClientsView";
 
 export type ClientListItem = {
   id: string;
@@ -136,17 +138,20 @@ export function ClientsListView({
   treatments,
   tags,
   initialSegments = [],
+  initialQuery = "",
   isAdmin = false,
 }: {
   initialClients: ClientListItem[];
   treatments: TreatmentOption[];
   tags: TagOption[];
   initialSegments?: SegmentItem[];
+  /** ערך `?q=` מה-URL (משימה 11.3 — ניווט מהחיפוש הגלובלי ב-Header). */
+  initialQuery?: string;
   /** ייצוא לקוחות זמין לאדמין בלבד (משימה 10.1). */
   isAdmin?: boolean;
 }) {
   // ─── סטייט פילטרים בסיסיים ──────────────────────────────────────────────
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("");
   const [selectedTreatmentIds, setSelectedTreatmentIds] = useState<string[]>([]);
   const [treatmentOperator, setTreatmentOperator] = useState<"AND" | "OR">("OR");
@@ -171,6 +176,9 @@ export function ClientsListView({
   const [segmentError, setSegmentError] = useState<string | null>(null);
   const [segmentSuccess, setSegmentSuccess] = useState<string | null>(null);
   const segmentNameRef = useRef<HTMLInputElement>(null);
+
+  // ─── סטייט תצוגה: לקוחות פעילים / ארכיון (משימה 11.6, FR-CL-01) ─────────
+  const [view, setView] = useState<"active" | "archived">("active");
 
   // ─── סטייט פעולות קבוצתיות (3.12, FR-CL-10) ─────────────────────────────
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
@@ -289,6 +297,14 @@ export function ClientsListView({
       void doFetch(q.trim(), gender, treatmentIds, treatmentOp, ex, requestId);
     }
   }
+
+  // סנכרון שדה החיפוש ל-`?q=` מה-URL (משימה 11.3) — נכנס לתוקף בטעינה ראשונה
+  // ובכל ניווט לרשימה עם q שונה (מהחיפוש הגלובלי ב-Header). ללא q — מנקה את החיפוש.
+  useEffect(() => {
+    setQuery(initialQuery);
+    triggerFetch(initialQuery.trim(), genderFilter, selectedTreatmentIds, treatmentOperator, extra, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- מסונכרן רק לשינוי ה-URL
+  }, [initialQuery]);
 
   // ─── handlers פילטרים בסיסיים ────────────────────────────────────────────
 
@@ -505,7 +521,60 @@ export function ClientsListView({
     }
   }
 
+  /** נקרא לאחר שחזור לקוח/ה מהארכיון — מסנכרן את תוצאות הפילטר הפעיל. */
+  function handleRestored(): void {
+    triggerFetch(trimmedQuery, genderFilter, selectedTreatmentIds, treatmentOperator, extra, 0);
+  }
+
+  /** מעבר בין רשימת הלקוחות הפעילה לתצוגת הארכיון (משימה 11.6). */
+  function handleViewChange(next: "active" | "archived"): void {
+    setView(next);
+    setSelectedClientIds([]);
+  }
+
   // ─── render ───────────────────────────────────────────────────────────────
+
+  // מתג תצוגה: פעילים / ארכיון — משותף לשתי התצוגות (משימה 11.6).
+  const viewToggle = (
+    <div
+      role="group"
+      aria-label="תצוגת לקוחות"
+      className="flex gap-1.5"
+    >
+      {(
+        [
+          { value: "active", label: "לקוחות פעילים" },
+          { value: "archived", label: "ארכיון" },
+        ] as const
+      ).map(({ value, label }) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={view === value}
+          onClick={() => handleViewChange(value)}
+          className={cn(
+            "min-h-11 rounded-lg border px-4 text-sm font-medium transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark focus-visible:ring-offset-1",
+            view === value
+              ? "border-gold-dark bg-gold-dark text-champagne"
+              : "border-gold-antique/40 bg-porcelain text-charcoal hover:border-gold-dark/60 hover:bg-champagne"
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // תצוגת ארכיון — רשימת מאורכבים עם שחזור (משימה 11.6, FR-CL-01).
+  if (view === "archived") {
+    return (
+      <div className="flex flex-col gap-4">
+        {viewToggle}
+        <ArchivedClientsView onRestored={handleRestored} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -527,6 +596,12 @@ export function ClientsListView({
         </label>
 
         <div className="flex flex-wrap items-center gap-4">
+          {/* מעבר לתצוגת הארכיון — משימה 11.6 */}
+          {viewToggle}
+
+          {/* יצירת לקוח/ה חדש/ה — משימה 11.4 (FR-CL-01) */}
+          <NewClientDialog tags={tags} />
+
           <Link
             href="/clients/duplicates"
             className="text-sm font-medium text-gold-dark underline-offset-2 hover:underline"

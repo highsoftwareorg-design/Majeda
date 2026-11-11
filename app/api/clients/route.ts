@@ -22,6 +22,9 @@ import {
 /**
  * GET /api/clients — רשימת לקוחות פעילים בלבד (ברירת מחדל, ללא ארכיון).
  *
+ * פרמטר `status` (משימה 11.6, FR-CL-01) — `status=archived` מחזיר **רק** לקוחות
+ * מאורכבים (לתצוגת הארכיון ולשחזור). כל ערך אחר / חסר = פעילים בלבד.
+ *
  * פרמטר `q` (משימה 3.5, FR-CL-03) — חיפוש גלובלי לפי שם/טלפון.
  * פרמטר `gender` (משימה 3.7, FR-CL-05) — פילטר מין (female/male/other).
  * פרמטר `treatments` (משימה 3.6, FR-CL-04) — מזהי Treatment מופרדים בפסיק.
@@ -137,7 +140,11 @@ export async function GET(request?: Request) {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  // פרמטר status (משימה 11.6) — רק "archived" משנה את ברירת המחדל (פעילים בלבד).
+  const archivedOnly = params.get("status") === "archived";
+
   const clients = await listClients({
+    archivedOnly,
     search: q,
     gender,
     treatmentIds,

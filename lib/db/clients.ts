@@ -26,6 +26,11 @@ import { normalizeHebrewSearchTerm } from "@/lib/validations/hebrew-search";
  */
 export async function listClients(options?: {
   includeArchived?: boolean;
+  /**
+   * רשימת מאורכבים בלבד (status="archived") — לתצוגת הארכיון ולשחזור (משימה 11.6).
+   * גובר על `includeArchived`. ברירת מחדל (לא סופק): רק פעילים.
+   */
+  archivedOnly?: boolean;
   search?: string;
   /** פילטר מין (FR-CL-05, משימה 3.7) — מסונן ברמת ה-DB כשדה סקלרי פשוט. */
   gender?: Gender;
@@ -71,8 +76,11 @@ export async function listClients(options?: {
   therapist?: string;
   marketingConsentChannel?: MarketingConsentChannel;
 }) {
-  const statusFilter: Prisma.ClientWhereInput | undefined =
-    options?.includeArchived ? undefined : { status: "active" };
+  const statusFilter: Prisma.ClientWhereInput | undefined = options?.archivedOnly
+    ? { status: "archived" }
+    : options?.includeArchived
+      ? undefined
+      : { status: "active" };
 
   const search = options?.search?.trim();
   // מונח מנורמל לעברית (ללא ניקוד, ללא תחילית ה/ו/ב) — משמש לחיפוש בהערות

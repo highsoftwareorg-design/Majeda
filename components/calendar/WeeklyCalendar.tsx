@@ -92,8 +92,14 @@ export interface WeeklyCalendarProps {
   treatments?: TreatmentOption[];
 }
 
-/** מצבי תצוגה: שבוע או יום */
-type ViewMode = "week" | "day";
+/** מצבי תצוגה: שבוע, יום או חודש (משימה 11.11) */
+type ViewMode = "week" | "day" | "month";
+
+/**
+ * סוג תצוגת היום (משימה 11.11): גריד שעות (קיים) או רשימת "סדר יום" מסודרת לפי שעה.
+ * ברירת מחדל: גריד; במסכים צרים (מובייל) מתעדכנת ל-"agenda" לאחר הטעינה.
+ */
+type DayLayout = "grid" | "agenda";
 
 /** מצב slot שמועל מעליו סמן הגרירה */
 interface DragOverSlot {
@@ -188,6 +194,30 @@ function getWeekStart(date: Date): Date {
 function toIsoDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }
+
+/**
+ * YYYY-MM-DD לפי התאריך המקומי (לא UTC).
+ * משמש לטווח חודש (11.11) ולברירת מחדל של יום בחודש — כדי שלא תוזז התאריך באזור Asia/Jerusalem.
+ */
+function toLocalIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/** שמות חודשים בעברית (לועזי) לכותרת תצוגת חודש */
+const HEBREW_MONTHS = [
+  "ינואר",
+  "פברואר",
+  "מרץ",
+  "אפריל",
+  "מאי",
+  "יוני",
+  "יולי",
+  "אוגוסט",
+  "ספטמבר",
+  "אוקטובר",
+  "נובמבר",
+  "דצמבר",
+] as const;
 
 /** DD/MM */
 function toDayMonth(date: Date): string {
@@ -1148,7 +1178,7 @@ export function WeeklyCalendar({
   const [therapistFilter, setTherapistFilter] = useState<string>("");
   const [roomFilter, setRoomFilter] = useState<string>("");
 
-  /** מצב תצוגה: שבוע או יום */
+  /** מצב תצוגה: שבוע, יום או חודש */
   const [viewMode, setViewMode] = useState<ViewMode>("week");
 
   /**
@@ -1160,6 +1190,17 @@ export function WeeklyCalendar({
     d.setHours(0, 0, 0, 0);
     return d;
   });
+
+  /** החודש המוצג בתצוגת חודש — תאריך ה-1 בחודש ב-midnight (משימה 11.11) */
+  const [monthStart, setMonthStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  /** סוג תצוגת היום: גריד או רשימת סדר יום (משימה 11.11) */
+  const [dayLayout, setDayLayout] = useState<DayLayout>("grid");
 
   // ---- מצב Drag & Drop ----
   /** מזהה התור הנגרר כרגע (null = אין גרירה) */
@@ -1183,18 +1224,21 @@ export function WeeklyCalendar({
   // ---- מצב דיאלוג תור חדש (משימה 5.9, FR-AP-02) ----
   const [showNewApt, setShowNewApt] = useState(false);
 
-  // מנע fetch בטעינה ראשונה (הנתונים כבר הגיעו מה-SSR)
-  const isFirstRender = useRef(true);
+  /**
+   * מפתח הטווח שנטען אחרון (`w:<שבוע>` או `m:<חודש>`).
+   * הנתונים הראשונים כבר הגיעו מה-SSR לשבוע הנוכחי — לכן המפתח ההתחלתי הוא השבוע.
+   * ה-effect למטה שולף רק כשהטווח הפעיל משתנה (לא בטעינה הראשונה).
+   */
+  const loadedRangeKey = useRef<string>(`w:${toIsoDate(weekStart)}`);
 
   // ---- שליפת תורים ----
-  const fetchWeek = useCallback(async (start: Date) => {
+  /** שליפת תורים לטווח תאריכים (YYYY-MM-DD, כולל) — מקור הנתונים היחיד ליומן */
+  const fetchRange = useCallback(async (startIso: string, endIso: string) => {
     setLoading(true);
     setFetchError(null);
     try {
-      const end = new Date(start);
-      end.setDate(end.getDate() + 6);
       const res = await fetch(
-        `/api/appointments?start=${toIsoDate(start)}&end=${toIsoDate(end)}`
+        `/api/appointments?start=${startIso}&end=${endIso}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as { appointments: SerializedAppointment[] };
@@ -1206,14 +1250,50 @@ export function WeeklyCalendar({
     }
   }, []);
 
-  // שליפה מחדש בעת שינוי weekStart (לא בטעינה ראשונה)
+  const fetchWeek = useCallback(
+    (start: Date) => {
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return fetchRange(toIsoDate(start), toIsoDate(end));
+    },
+    [fetchRange]
+  );
+
+  /**
+   * שליפת חודש (משימה 11.11): טווח רחב ביום אחד מכל צד כדי לא לפספס תורים בגבולות
+   * אזור הזמן; הסינון המדויק לפי תאריך מקומי נעשה בצד הלקוח (monthCounts).
+   */
+  const fetchMonth = useCallback(
+    (start: Date) => {
+      const first = new Date(start.getFullYear(), start.getMonth(), 0); // יום אחרון של החודש הקודם
+      const last = new Date(start.getFullYear(), start.getMonth() + 1, 1); // היום שאחרי סוף החודש
+      return fetchRange(toLocalIsoDate(first), toLocalIsoDate(last));
+    },
+    [fetchRange]
+  );
+
+  // שליפה מחדש כשהטווח הפעיל משתנה (שבוע/יום/חודש) — פעם אחת לכל טווח
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+    const key =
+      viewMode === "month"
+        ? `m:${toLocalIsoDate(monthStart)}`
+        : `w:${toIsoDate(weekStart)}`;
+    if (loadedRangeKey.current === key) return;
+    loadedRangeKey.current = key;
+    if (viewMode === "month") {
+      void fetchMonth(monthStart);
+    } else {
+      void fetchWeek(weekStart);
     }
-    fetchWeek(weekStart);
-  }, [weekStart, fetchWeek]);
+  }, [viewMode, weekStart, monthStart, fetchWeek, fetchMonth]);
+
+  /** מעבר לתצוגת מסך מובייל: רשימת סדר יום כברירת מחדל (משימה 11.11) */
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setDayLayout("agenda");
+    }
+  }, []);
 
   /**
    * בתצוגת יום: סינכרון weekStart ל-selectedDay אם עבר לשבוע שונה.
@@ -1253,12 +1333,48 @@ export function WeeklyCalendar({
       setWeekStart(getWeekStart(new Date()));
       setTherapistFilter("");
       setRoomFilter("");
+    } else if (viewMode === "month") {
+      const today = new Date();
+      setMonthStart(new Date(today.getFullYear(), today.getMonth(), 1));
+      setTherapistFilter("");
+      setRoomFilter("");
     } else {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       setSelectedDay(today);
     }
   }, [viewMode]);
+
+  // ---- ניווט חודש (משימה 11.11) ----
+  const goToPrevMonth = useCallback(() => {
+    setMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    setTherapistFilter("");
+    setRoomFilter("");
+  }, []);
+
+  const goToNextMonth = useCallback(() => {
+    setMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    setTherapistFilter("");
+    setRoomFilter("");
+  }, []);
+
+  /**
+   * החלפת מצב תצוגה (שבוע/יום/חודש) מהמתג.
+   * מיישר את השבוע ליום הנבחר/לשבוע הנוכחי, כך שהשליפה תתבצע פעם אחת לטווח הנכון.
+   */
+  const changeViewMode = useCallback(
+    (mode: ViewMode) => {
+      if (mode === viewMode) return;
+      if (mode === "month") {
+        const anchor = viewMode === "day" ? selectedDay : weekStart;
+        setMonthStart(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+      } else {
+        setWeekStart(getWeekStart(selectedDay));
+      }
+      setViewMode(mode);
+    },
+    [viewMode, selectedDay, weekStart]
+  );
 
   // ---- ניווט יום ----
   const goToPrevDay = useCallback(() => {
@@ -1285,6 +1401,8 @@ export function WeeklyCalendar({
     const d = new Date(day);
     d.setHours(0, 0, 0, 0);
     setSelectedDay(d);
+    // שבוע היום יסונכרן מיד (נדרש גם מתצוגת חודש) — שליפה אחת לשבוע הנכון
+    setWeekStart(getWeekStart(d));
     setViewMode("day");
   }, []);
 
@@ -1547,6 +1665,34 @@ export function WeeklyCalendar({
       );
   }, [filtered, selectedDay]);
 
+  /**
+   * מספר תורים לכל יום (מפתח YYYY-MM-DD מקומי) — לתצוגת חודש (משימה 11.11).
+   * נגזר מ-filtered, כך שהפילטרים של מטפל/ת וחדר חלים גם על ספירת החודש.
+   */
+  const monthCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const apt of filtered) {
+      const key = toLocalIsoDate(new Date(apt.startTime));
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [filtered]);
+
+  /**
+   * תאי לוח החודש: null = משבצת ריקה לפני היום הראשון/אחרי האחרון (מילוי לשבוע מלא).
+   * ראשון=0 — בפריסת RTL היום הראשון של השבוע הוא הימני ביותר.
+   */
+  const monthCells = useMemo(() => {
+    const y = monthStart.getFullYear();
+    const m = monthStart.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < monthStart.getDay(); i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(y, m, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [monthStart]);
+
   /** תוויות שעה: 09:00, 10:00, ... 19:00 — נגזרות מ-calStart/calEnd */
   const hourLabels = useMemo(() => {
     return Array.from(
@@ -1557,24 +1703,46 @@ export function WeeklyCalendar({
 
   const hasActiveFilter = therapistFilter || roomFilter;
   const weekRangeLabel = `${toDayMonth(weekDays[0])} – ${toDayMonth(weekDays[6])}`;
+  const monthLabel = `${HEBREW_MONTHS[monthStart.getMonth()]} ${monthStart.getFullYear()}`;
 
   /** תאריך ברירת מחדל לדיאלוג תור חדש: היום אם בתוך השבוע, אחרת תחילת השבוע/יום הנבחר */
   const defaultAptDate = useMemo(() => {
     if (viewMode === "day") return toIsoDate(selectedDay);
+    if (viewMode === "month") {
+      // חודש: היום אם בחודש המוצג, אחרת היום הראשון של החודש (תאריך מקומי)
+      const today = new Date();
+      if (
+        today.getFullYear() === monthStart.getFullYear() &&
+        today.getMonth() === monthStart.getMonth()
+      ) {
+        return toLocalIsoDate(today);
+      }
+      return toLocalIsoDate(monthStart);
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
     if (today >= weekStart && today <= weekEnd) return toIsoDate(today);
     return toIsoDate(weekStart);
-  }, [viewMode, selectedDay, weekStart]);
+  }, [viewMode, selectedDay, weekStart, monthStart]);
   const selectedDayLabel = `${WEEK_DAYS[selectedDay.getDay()]} ${toDayMonth(selectedDay)}`;
 
   // ---- ניווט: prev/today/next — משמעות לפי viewMode ----
-  const handlePrev = viewMode === "week" ? goToPrevWeek : goToPrevDay;
-  const handleNext = viewMode === "week" ? goToNextWeek : goToNextDay;
-  const prevLabel = viewMode === "week" ? "שבוע קודם" : "יום קודם";
-  const nextLabel = viewMode === "week" ? "שבוע הבא" : "יום הבא";
+  const handlePrev =
+    viewMode === "week" ? goToPrevWeek : viewMode === "month" ? goToPrevMonth : goToPrevDay;
+  const handleNext =
+    viewMode === "week" ? goToNextWeek : viewMode === "month" ? goToNextMonth : goToNextDay;
+  const prevLabel =
+    viewMode === "week" ? "שבוע קודם" : viewMode === "month" ? "חודש קודם" : "יום קודם";
+  const nextLabel =
+    viewMode === "week" ? "שבוע הבא" : viewMode === "month" ? "חודש הבא" : "יום הבא";
+  const headerSubLabel =
+    viewMode === "week"
+      ? weekRangeLabel
+      : viewMode === "month"
+        ? monthLabel
+        : selectedDayLabel;
 
   // ---- תצוגה ----
   return (
@@ -1590,7 +1758,7 @@ export function WeeklyCalendar({
               יומן תורים
             </h1>
             <span className="text-xs text-taupe">
-              {viewMode === "week" ? weekRangeLabel : selectedDayLabel}
+              {headerSubLabel}
             </span>
           </div>
 
@@ -1641,16 +1809,16 @@ export function WeeklyCalendar({
             הוסף תור
           </Button>
 
-          {/* מיתוג שבוע/יום */}
+          {/* מיתוג שבוע/יום/חודש (משימה 11.11 — הוספת חודש) */}
           <div
             className="flex rounded-md border border-gold-dark/30 overflow-hidden shrink-0"
             role="group"
             aria-label="בחירת תצוגה"
           >
             <button
-              onClick={() => setViewMode("week")}
+              onClick={() => changeViewMode("week")}
               className={cn(
-                "h-8 px-3 text-xs font-medium transition-colors",
+                "min-h-11 md:min-h-8 md:h-8 px-3 text-xs font-medium transition-colors",
                 viewMode === "week"
                   ? "bg-gold text-ink"
                   : "bg-white text-charcoal hover:bg-champagne"
@@ -1662,9 +1830,9 @@ export function WeeklyCalendar({
             </button>
             <div className="w-px bg-gold-dark/30" aria-hidden="true" />
             <button
-              onClick={() => setViewMode("day")}
+              onClick={() => changeViewMode("day")}
               className={cn(
-                "h-8 px-3 text-xs font-medium transition-colors",
+                "min-h-11 md:min-h-8 md:h-8 px-3 text-xs font-medium transition-colors",
                 viewMode === "day"
                   ? "bg-gold text-ink"
                   : "bg-white text-charcoal hover:bg-champagne"
@@ -1674,7 +1842,58 @@ export function WeeklyCalendar({
             >
               יום
             </button>
+            <div className="w-px bg-gold-dark/30" aria-hidden="true" />
+            <button
+              onClick={() => changeViewMode("month")}
+              className={cn(
+                "min-h-11 md:min-h-8 md:h-8 px-3 text-xs font-medium transition-colors",
+                viewMode === "month"
+                  ? "bg-gold text-ink"
+                  : "bg-white text-charcoal hover:bg-champagne"
+              )}
+              aria-pressed={viewMode === "month"}
+              aria-label="תצוגת חודש"
+            >
+              חודש
+            </button>
           </div>
+
+          {/* מיתוג גריד/רשימת יום — רק בתצוגת יום (משימה 11.11) */}
+          {viewMode === "day" && (
+            <div
+              className="flex rounded-md border border-gold-dark/30 overflow-hidden shrink-0"
+              role="group"
+              aria-label="בחירת סוג תצוגת יום"
+            >
+              <button
+                onClick={() => setDayLayout("grid")}
+                className={cn(
+                  "min-h-11 md:min-h-8 md:h-8 px-3 text-xs font-medium transition-colors",
+                  dayLayout === "grid"
+                    ? "bg-gold text-ink"
+                    : "bg-white text-charcoal hover:bg-champagne"
+                )}
+                aria-pressed={dayLayout === "grid"}
+                aria-label="גריד יום"
+              >
+                גריד יום
+              </button>
+              <div className="w-px bg-gold-dark/30" aria-hidden="true" />
+              <button
+                onClick={() => setDayLayout("agenda")}
+                className={cn(
+                  "min-h-11 md:min-h-8 md:h-8 px-3 text-xs font-medium transition-colors",
+                  dayLayout === "agenda"
+                    ? "bg-gold text-ink"
+                    : "bg-white text-charcoal hover:bg-champagne"
+                )}
+                aria-pressed={dayLayout === "agenda"}
+                aria-label="רשימת יום"
+              >
+                רשימת יום
+              </button>
+            </div>
+          )}
 
           {/* פילטר מטפל/ת */}
           <label className="sr-only" htmlFor="therapist-filter">
@@ -1795,7 +2014,7 @@ export function WeeklyCalendar({
       {/* ================================================================
           תצוגת יום — מוצגת בכל גדלי מסך כשנבחרה תצוגת יום
           ================================================================ */}
-      {viewMode === "day" && (
+      {viewMode === "day" && dayLayout === "grid" && (
         <div
           className="overflow-auto flex-1"
           role="region"
@@ -1909,6 +2128,225 @@ export function WeeklyCalendar({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ================================================================
+          רשימת סדר יום — תצוגת יום כרשימה מסודרת לפי שעה (משימה 11.11)
+          ברירת מחדל במובייל (ראה effect מעל); אותם תורים, פעולות סטטוס ושינוי מועד כמו בגריד
+          ================================================================ */}
+      {viewMode === "day" && dayLayout === "agenda" && (
+        <div
+          className="overflow-auto flex-1 p-4"
+          role="region"
+          aria-label={`רשימת סדר יום: ${selectedDayLabel}`}
+        >
+          <div className="flex items-center gap-2 mb-3 max-w-2xl mx-auto">
+            <h2
+              className={cn(
+                "text-sm font-heading font-semibold",
+                isToday(selectedDay) ? "text-gold-dark" : "text-charcoal"
+              )}
+            >
+              {selectedDayLabel}
+            </h2>
+            {isToday(selectedDay) && (
+              <span className="text-[10px] bg-gold text-ink px-1.5 py-0.5 rounded-full font-medium">
+                היום
+              </span>
+            )}
+          </div>
+
+          {dayAppointments.length === 0 ? (
+            <div className="flex items-center justify-center py-12" aria-live="polite">
+              <p className="text-taupe text-sm">
+                {hasActiveFilter
+                  ? "אין תורים התואמים את הסינון הנוכחי ביום זה"
+                  : "אין תורים ליום זה"}
+              </p>
+            </div>
+          ) : (
+            <ol className="flex flex-col gap-2 max-w-2xl mx-auto">
+              {dayAppointments.map((apt) => {
+                const bgColor = apt.treatment?.color ?? DEFAULT_APT_COLOR;
+                const startStr = toTimeStr(apt.startTime);
+                const endStr = toTimeStr(apt.endTime);
+                const clientName = `${apt.client.firstName} ${apt.client.lastName}`;
+                const nextSts = NEXT_STATUSES[apt.status] ?? [];
+                const badge = STATUS_BADGE_STYLE[apt.status] ?? STATUS_BADGE_STYLE.SCHEDULED;
+                return (
+                  <li
+                    key={apt.id}
+                    className="flex flex-col rounded-md bg-white shadow-sm overflow-hidden"
+                    aria-label={`תור: ${clientName}, ${startStr}, סטטוס: ${STATUS_HE[apt.status] ?? apt.status}`}
+                  >
+                    <div className="flex items-stretch">
+                      {/* פס צבע הטיפול (בצד ההתחלה ב-RTL) */}
+                      <div
+                        className="w-1 shrink-0"
+                        style={{ backgroundColor: bgColor }}
+                        aria-hidden="true"
+                      />
+                      <div className="flex-1 px-3 py-2 min-w-0">
+                        {/* שעה + סטטוס */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-charcoal tabular-nums" dir="ltr">
+                            {startStr}–{endStr}
+                          </span>
+                          <span
+                            className="inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-sm shrink-0"
+                            style={{
+                              backgroundColor: badge.bg,
+                              color: badge.text === "inherit" ? "#1C1A17" : badge.text,
+                            }}
+                          >
+                            {STATUS_HE[apt.status] ?? apt.status}
+                          </span>
+                        </div>
+                        {/* לקוח/ה */}
+                        <div className="text-base font-medium text-charcoal mt-0.5 truncate">
+                          {clientName}
+                        </div>
+                        {/* טיפול, מטפל/ת, חדר */}
+                        <dl className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-taupe">
+                          <div className="flex gap-1">
+                            <dt>טיפול:</dt>
+                            <dd>{apt.treatment?.name ?? "טיפול"}</dd>
+                          </div>
+                          {apt.therapist && (
+                            <div className="flex gap-1">
+                              <dt>מטפל/ת:</dt>
+                              <dd>{apt.therapist}</dd>
+                            </div>
+                          )}
+                          {apt.room && (
+                            <div className="flex gap-1">
+                              <dt>חדר:</dt>
+                              <dd>{apt.room}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                      {/* שינוי מועד — נגישות ממקלדת/מובייל (כמו בגריד) */}
+                      <button
+                        className={cn(
+                          "shrink-0 px-3 text-xs font-medium text-gold-dark min-h-[44px]",
+                          "border-s border-border hover:bg-champagne/60",
+                          "transition-colors min-w-[72px]",
+                          "focus:outline-none focus:ring-2 focus:ring-gold-dark/40 focus:ring-inset"
+                        )}
+                        onClick={() => handleOpenReschedule(apt)}
+                        aria-label={`שנה מועד עבור ${clientName}`}
+                      >
+                        שנה מועד
+                      </button>
+                    </div>
+
+                    {/* שינוי סטטוס — רק סטטוסים חוקיים (FR-AP-04, משימה 5.8) */}
+                    {nextSts.length > 0 && (
+                      <div
+                        className="flex gap-1 px-3 pb-2 pt-0 border-t border-border/50 flex-wrap"
+                        dir="rtl"
+                      >
+                        <span className="text-[10px] text-taupe self-center me-1">
+                          עדכן סטטוס:
+                        </span>
+                        {nextSts.map((s) => {
+                          const st = STATUS_BADGE_STYLE[s] ?? STATUS_BADGE_STYLE.SCHEDULED;
+                          return (
+                            <button
+                              key={s}
+                              className={cn(
+                                "text-[10px] font-medium px-2 py-1 rounded-sm min-h-[44px]",
+                                "border border-border/50 hover:border-gold-dark/50",
+                                "transition-colors",
+                                "focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
+                              )}
+                              style={{
+                                backgroundColor: st.bg,
+                                color: st.text === "inherit" ? "#1C1A17" : st.text,
+                              }}
+                              onClick={() => handleStatusChange(apt, s)}
+                              aria-label={`עדכן סטטוס ל: ${STATUS_HE[s] ?? s}`}
+                            >
+                              {STATUS_HE[s] ?? s}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      )}
+
+      {/* ================================================================
+          תצוגת חודש — לוח חודשי עם מספר תורים לכל יום (משימה 11.11)
+          לחיצה על יום מעבירה לתצוגת היום של אותו תאריך (switchToDayView)
+          ================================================================ */}
+      {viewMode === "month" && (
+        <div
+          className="overflow-auto flex-1 p-2 sm:p-4"
+          role="region"
+          aria-label={`תצוגת חודש: ${monthLabel}`}
+        >
+          {/* פריסת RTL: ראשון בימין, שבת בשמאל */}
+          <div className="grid grid-cols-7 bg-white border-t border-s border-border rounded-md overflow-hidden max-w-4xl mx-auto">
+            {WEEK_DAYS.map((name) => (
+              <div
+                key={name}
+                className="bg-champagne text-center text-xs font-medium text-charcoal py-2 border-b border-e border-border"
+              >
+                {name}
+              </div>
+            ))}
+            {monthCells.map((day, idx) => {
+              if (!day) {
+                return (
+                  <div
+                    key={`empty-${idx}`}
+                    className="bg-champagne/40 border-b border-e border-border"
+                    aria-hidden="true"
+                  />
+                );
+              }
+              const dayKey = toLocalIsoDate(day);
+              const count = monthCounts.get(dayKey) ?? 0;
+              return (
+                <button
+                  type="button"
+                  key={dayKey}
+                  onClick={() => switchToDayView(day)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 min-h-[64px] p-1.5",
+                    "border-b border-e border-border transition-colors hover:bg-champagne/60",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark/40 focus-visible:ring-inset",
+                    isToday(day) ? "bg-gold/10" : "bg-white"
+                  )}
+                  aria-label={`${WEEK_DAYS[day.getDay()]} ${toDayMonth(day)}, ${
+                    count === 0 ? "אין תורים" : `${count} תורים`
+                  } — עבור לתצוגת יום`}
+                >
+                  <span
+                    className={cn(
+                      "text-sm",
+                      isToday(day) ? "text-gold-dark font-semibold" : "text-charcoal font-medium"
+                    )}
+                  >
+                    {day.getDate()}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-[11px] font-medium bg-gold text-ink rounded-full px-1.5 min-w-[1.5rem] text-center">
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -2378,7 +2816,9 @@ export function WeeklyCalendar({
           treatments={treatments}
           defaultDate={defaultAptDate}
           onClose={() => setShowNewApt(false)}
-          onSuccess={() => void fetchWeek(weekStart)}
+          onSuccess={() =>
+            void (viewMode === "month" ? fetchMonth(monthStart) : fetchWeek(weekStart))
+          }
         />
       )}
     </div>

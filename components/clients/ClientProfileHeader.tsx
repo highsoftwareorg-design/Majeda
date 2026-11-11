@@ -8,6 +8,9 @@
  */
 
 import { MessageCircle, Calendar, MapPin, Tag as TagIcon } from "lucide-react";
+import { EditClientDialog } from "@/components/clients/EditClientDialog";
+import { ArchiveClientDialog } from "@/components/clients/ArchiveClientDialog";
+import type { ClientFormTagOption } from "@/components/clients/ClientFormFields";
 
 // טיפוסים מינימליים — תואמים לפלט של getClientById (כולל include תגיות)
 export type ClientProfileHeaderData = {
@@ -17,6 +20,10 @@ export type ClientProfileHeaderData = {
   phone: string;
   gender: "female" | "male" | "other" | null;
   birthDate: Date | null;
+  // שדות לטופס העריכה (11.5) — אופציונליים כדי לא לשבור תצוגה בלבד
+  email?: string | null;
+  city?: string | null;
+  note?: string | null;
   source: string;
   marketingConsentChannel:
     | "none"
@@ -93,8 +100,11 @@ function consentBadgeClass(variant: ConsentVariant): string {
 
 export function ClientProfileHeader({
   client,
+  tagOptions = [],
 }: {
   client: ClientProfileHeaderData;
+  /** כל התגיות במערכת — לבחירה בטופס העריכה (11.5). */
+  tagOptions?: ClientFormTagOption[];
 }) {
   const age = computeAge(client.birthDate);
   const waLink = toWhatsAppLink(client.phone);
@@ -108,10 +118,40 @@ export function ClientProfileHeader({
       aria-label="פרטי לקוח"
       className="rounded-brand bg-white border border-gold-antique/40 p-5 sm:p-7 shadow-sm"
     >
-      {/* שם מלא */}
-      <h1 className="font-heading text-3xl sm:text-4xl text-charcoal mb-1 leading-snug">
-        {client.firstName} {client.lastName}
-      </h1>
+      {/* שם מלא + כפתורי עריכה (11.5) וארכיון (11.6) */}
+      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+        <h1 className="font-heading text-3xl sm:text-4xl text-charcoal leading-snug">
+          {client.firstName} {client.lastName}
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <EditClientDialog
+            tags={tagOptions}
+            client={{
+              id: client.id,
+              firstName: client.firstName,
+              lastName: client.lastName,
+              phone: client.phone,
+              gender: client.gender,
+              birthDate: client.birthDate
+                ? client.birthDate.toISOString().slice(0, 10)
+                : null,
+              email: client.email ?? null,
+              city: client.city ?? null,
+              source: client.source,
+              note: client.note ?? null,
+              marketingConsentChannel: client.marketingConsentChannel,
+              tags: client.tags,
+            }}
+          />
+          <ArchiveClientDialog
+            client={{
+              id: client.id,
+              firstName: client.firstName,
+              lastName: client.lastName,
+            }}
+          />
+        </div>
+      </div>
 
       {/* גיל ומין */}
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-4">

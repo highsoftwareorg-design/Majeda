@@ -6,7 +6,14 @@
  */
 
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// ClientProfileHeader מרנדר כעת את ArchiveClientDialog (משימה 11.6) שמשתמש
+// ב-useRouter — יש לספק mock ל-next/navigation כדי שהרינדור ב-jsdom לא ייפול.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import {
   ClientProfileHeader,
   toWhatsAppLink,
