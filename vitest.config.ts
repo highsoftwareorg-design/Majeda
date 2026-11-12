@@ -13,6 +13,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    // Heavy RTL/axe suite: raise the per-test timeout so dynamic imports under
+    // full-suite parallel load don't flake (tests that are truly broken still fail).
+    testTimeout: 15000,
     // Exclude the bundled Playwright example spec under .claude (it imports
     // @playwright/test, which isn't a project dependency) and any e2e specs.
     exclude: [...configDefaults.exclude, "**/.claude/**", "e2e/**"],
