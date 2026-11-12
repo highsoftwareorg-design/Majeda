@@ -18,7 +18,7 @@ import { TREATMENT_MENU } from "@/lib/landing/treatment-menu";
  *
  * עיצוב (כיוון "אטלייה נואר ושמפניה"): רצועה בהירה (champagne-wash). קטגוריה פעילה = bg-gold /
  * text-ink; לא-פעילה = קו שיער + charcoal. כרטיסים בקו שיער עם מבטא זהב (gold-deep) ו-charcoal/taupe.
- * ללא טוקני שטח כהה (text-gold-pale וכו') — תואם למגבלת הרצועות הבהירות.
+ * ללא טוקני שטח כהה (טוקני זהב בהירים וכו') — תואם למגבלת הרצועות הבהירות.
  *
  * נגישות: כפתורי הקטגוריות הם קבוצת סינון (aria-pressed) עם aria-label; כל כרטיס הוא כפתור
  * חשיפה (aria-expanded + aria-controls). RTL ו-mobile-first: logical properties, כפתורים

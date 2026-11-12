@@ -35,7 +35,7 @@ describe("AboutSection — 2.14 redesign regression", () => {
 
   it("keeps the exact body paragraph", () => {
     const { container } = render(<AboutSection />);
-    const p = container.querySelector("[data-about-copy] p");
+    const p = container.querySelector("[data-about-copy] p.measure-prose");
     expect(p?.textContent?.replace(/\s+/g, " ").trim()).toBe(BODY);
   });
 

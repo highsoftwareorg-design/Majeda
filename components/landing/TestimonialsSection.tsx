@@ -68,10 +68,10 @@ export function TestimonialsSection() {
               data-testimonial-item
               className="flex min-w-0 flex-col gap-2 border-s border-gold-dark ps-6"
             >
-              {/* גליף הציטוט הפותח — קישוט בלבד (gold-pale על sand), מוסתר מקורא המסך */}
+              {/* גליף הציטוט הפותח — קישוט בלבד (gold-dark על sand, 4.96:1), מוסתר מקורא המסך */}
               <span
                 aria-hidden="true"
-                className="font-heading text-display leading-none font-medium text-gold-pale"
+                className="font-heading text-display leading-none font-medium text-gold-dark"
               >
                 &ldquo;
               </span>

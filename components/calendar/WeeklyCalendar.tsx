@@ -675,6 +675,19 @@ interface NewAptDialogProps {
   onSuccess: () => void;
 }
 
+/**
+ * מוסיף דקות לשעה בפורמט HH:mm ומחזיר HH:mm (עטיפה בתוך היממה).
+ * חציית חצות אינה נחסמת כאן — בדיקת תקינות שעת הסיום נעשית בשליחת הטופס.
+ */
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const DAY = 24 * 60;
+  const total = (((h * 60 + m + minutes) % DAY) + DAY) % DAY;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(
+    total % 60
+  ).padStart(2, "0")}`;
+}
+
 function NewAppointmentDialog({
   treatments,
   defaultDate,
@@ -728,18 +741,14 @@ function NewAppointmentDialog({
     return () => clearTimeout(timer);
   }, [clientQuery]);
 
-  // עדכון שעת סיום אוטומטי בהתאם לטיפול הנבחר
-  useEffect(() => {
-    const treatment = treatments.find((t) => t.id === treatmentId);
-    if (!treatment || !startTime) return;
-    const [h, m] = startTime.split(":").map(Number);
-    const totalMins = h * 60 + m + treatment.durationMinutes;
-    const endH = Math.floor(totalMins / 60);
-    const endM = totalMins % 60;
-    setEndTime(
-      `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`
-    );
-  }, [treatmentId, startTime, treatments]);
+  // מילוי אוטומטי של שעת הסיום (שעת התחלה + משך הטיפול) — מופעל רק בפעולת משתמש.
+  // אם המשתמש/ת ערך/ה שעת סיום ידנית, הערך נשמר עד שבוחרים טיפול או משנים שעת התחלה.
+  // בחירת "ללא טיפול ספציפי" לא משנה את שעת הסיום.
+  const applyAutoEnd = (start: string, tid: string) => {
+    const duration = treatments.find((t) => t.id === tid)?.durationMinutes;
+    if (!tid || duration === undefined || !start) return;
+    setEndTime(addMinutesToTime(start, duration));
+  };
 
   const handleSubmit = async () => {
     setFormError(null);
@@ -964,7 +973,10 @@ function NewAppointmentDialog({
               <select
                 id="new-apt-treatment"
                 value={treatmentId}
-                onChange={(e) => setTreatmentId(e.target.value)}
+                onChange={(e) => {
+                  setTreatmentId(e.target.value);
+                  applyAutoEnd(startTime, e.target.value);
+                }}
                 className={cn(
                   "w-full h-9 rounded-md border border-input bg-white px-3 text-sm",
                   "focus:outline-none focus:ring-2 focus:ring-gold-dark/40"
@@ -1063,7 +1075,10 @@ function NewAppointmentDialog({
                   id="new-apt-start"
                   type="time"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    applyAutoEnd(e.target.value, treatmentId);
+                  }}
                   step="1800"
                   dir="ltr"
                   className={cn(
