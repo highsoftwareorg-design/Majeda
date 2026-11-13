@@ -132,6 +132,7 @@ describe("POST /api/clients/bulk-tag — משימה 3.12", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuth.mockResolvedValue({ user: { id: "user-1", role: "admin" } });
     mockTagFindUnique.mockResolvedValue(FAKE_TAG);
     mockClientTagCreateMany.mockResolvedValue({ count: 2 });
   });

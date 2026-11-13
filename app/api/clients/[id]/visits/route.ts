@@ -17,11 +17,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getClientById } from "@/lib/db/clients";
 import { createFollowUpsForVisit } from "@/lib/db/visits";
+import { auth } from "@/lib/auth/auth";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 /** POST /api/clients/:id/visits — יצירת ביקור חדש */
 export async function POST(request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   // ולידציה: הלקוח קיים ופעיל

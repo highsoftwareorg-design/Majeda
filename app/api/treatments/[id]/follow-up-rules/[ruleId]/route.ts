@@ -5,12 +5,16 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string; ruleId: string }> };
 
 /** DELETE /api/treatments/:id/follow-up-rules/:ruleId */
 export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id, ruleId } = await params;
 
   const rule = await prisma.followUpRule.findFirst({

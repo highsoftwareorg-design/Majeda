@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getClientById } from "@/lib/db/clients";
+import { auth } from "@/lib/auth/auth";
 import {
   validateUpdateClient,
   isClientValid,
@@ -21,6 +22,9 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 /** GET /api/clients/:id — שליפת לקוח בודד (פעיל או בארכיון). */
 export async function GET(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
   const client = await getClientById(id);
 
@@ -33,6 +37,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 /** PATCH /api/clients/:id — עדכון חלקי של שדות הלקוח. */
 export async function PATCH(request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   let body: UpdateClientInput;
@@ -126,6 +133,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
  * פיזית (FR-CL-01).
  */
 export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await getClientById(id);

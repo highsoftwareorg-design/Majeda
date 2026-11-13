@@ -11,6 +11,10 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // --- Mocks (חייבים לפני ה-imports של המודולים הממוקים) ---
 
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 const { mockGetClinicSettings, mockUpsertClinicSettings } = vi.hoisted(() => ({
   mockGetClinicSettings: vi.fn(),
   mockUpsertClinicSettings: vi.fn(),

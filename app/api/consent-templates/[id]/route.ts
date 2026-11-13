@@ -9,6 +9,7 @@
 
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -18,6 +19,9 @@ type RouteContext = { params: Promise<{ id: string }> };
  * מחזיר תבנית בודדת לפי מזהה.
  */
 export async function GET(_request: Request, { params }: RouteContext) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   try {
@@ -56,6 +60,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
  * הן אינן מושפעות כי עדכון הגרסה אינו משנה את הרשומה הישנה (רק isActive=false).
  */
 export async function PATCH(request: Request, { params }: RouteContext) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   let body: unknown;
@@ -168,6 +175,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
  * הרשומה נשארת בבסיס הנתונים לצורכי audit ולחתימות קיימות.
  */
 export async function DELETE(_request: Request, { params }: RouteContext) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   try {

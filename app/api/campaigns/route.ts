@@ -8,11 +8,15 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 import { parseCampaignInput } from "@/lib/campaigns/validation";
 
 /** GET /api/campaigns — רשימת קמפיינים */
 export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const campaigns = await prisma.campaign.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -25,6 +29,9 @@ export async function GET() {
 
 /** POST /api/campaigns — יצירת קמפיין חדש (סטטוס DRAFT) */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await request.json();

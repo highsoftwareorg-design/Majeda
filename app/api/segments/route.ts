@@ -10,9 +10,13 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { auth } from "@/lib/auth/auth";
 
 /** GET /api/segments — רשימת כל הסגמנטים */
 export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const segments = await prisma.segment.findMany({
     orderBy: { createdAt: "desc" },
     select: {
@@ -27,6 +31,9 @@ export async function GET() {
 
 /** POST /api/segments — יצירת סגמנט חדש */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await request.json();

@@ -12,6 +12,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -20,6 +21,9 @@ const VALID_RECIPIENT_TYPES = ["client", "admin", "both"];
 
 /** GET /api/treatments/:id/follow-up-rules */
 export async function GET(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const treatment = await prisma.treatment.findUnique({
@@ -40,6 +44,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 /** POST /api/treatments/:id/follow-up-rules */
 export async function POST(request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const treatment = await prisma.treatment.findUnique({

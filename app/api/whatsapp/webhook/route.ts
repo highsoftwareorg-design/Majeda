@@ -1,4 +1,11 @@
 /**
+ * הערת אבטחה (§13.6): נתיב זה ציבורי בכוונה (allowlist ב-`lib/auth/public-paths.ts`).
+ * האימות הוא חתימת Twilio (`X-Twilio-Signature`) ב-`TwilioWhatsAppService.parseWebhookEvent`
+ * (חתימה לא תקינה → null → הבקשה אינה מעובדת). ב-GET האימות הוא `hub.verify_token`.
+ * אין להוסיף `auth()` כאן — Twilio/Meta אינם שולחים עוגיית session.
+ */
+
+/**
  * app/api/whatsapp/webhook/route.ts
  * Task 6.6 — Webhook לקבלת עדכוני סטטוס ותשובות מהירות מ-WhatsApp (FR-WA-03, FR-WA-06).
  *

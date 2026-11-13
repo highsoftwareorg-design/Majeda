@@ -25,6 +25,7 @@ const {
   mockAppointmentUpdate,
   mockAppointmentStatusHistoryCreate,
   mockTransaction,
+  mockClientUpdateMany,
 } = vi.hoisted(() => ({
   mockParseWebhookEvent: vi.fn(),
   mockMessageUpdateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -33,6 +34,7 @@ const {
   mockAppointmentUpdate: vi.fn(),
   mockAppointmentStatusHistoryCreate: vi.fn(),
   mockTransaction: vi.fn(),
+  mockClientUpdateMany: vi.fn().mockResolvedValue({ count: 1 }),
 }));
 
 vi.mock("@/lib/whatsapp/index", () => ({
@@ -49,7 +51,7 @@ vi.mock("@/lib/db/prisma", () => ({
     },
     client: {
       findFirst: mockClientFindFirst,
-      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      updateMany: mockClientUpdateMany,
     },
     appointment: {
       findFirst: mockAppointmentFindFirst,
@@ -186,6 +188,43 @@ describe("POST /api/whatsapp/webhook", () => {
     expect(response.status).toBe(200);
     // לא צריך לקרוא לשום עדכון ב-DB
     expect(mockMessageUpdateMany).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("חתימת Twilio לא תקינה (parseWebhookEvent → null) — 200 { received: true } וללא קריאות DB", async () => {
+    // payload שהיה מעובד (inbound "מאשרת" עם לקוחה ותור) — אך החתימה נדחית ב-parseWebhookEvent
+    mockParseWebhookEvent.mockReturnValue(null);
+    mockClientFindFirst.mockResolvedValue({ id: "client-1", phone: "+972501234567" });
+    mockAppointmentFindFirst.mockResolvedValue({
+      id: "appt-1",
+      clientId: "client-1",
+      status: "SCHEDULED",
+      notes: null,
+    });
+
+    const req = new Request("http://localhost/api/whatsapp/webhook", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-twilio-signature": "bad-sig",
+      },
+      body: JSON.stringify({ Body: "מאשרת", From: "whatsapp:+972501234567" }),
+    });
+    const response = await POST(req as Parameters<typeof POST>[0]);
+
+    // החתימה מועברת ל-parseWebhookEvent מה-header
+    expect(mockParseWebhookEvent).toHaveBeenCalledWith(expect.anything(), "bad-sig");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+
+    // אף מוק של DB לא נקרא
+    expect(mockMessageUpdateMany).not.toHaveBeenCalled();
+    expect(mockClientFindFirst).not.toHaveBeenCalled();
+    expect(mockClientUpdateMany).not.toHaveBeenCalled();
+    expect(mockAppointmentFindFirst).not.toHaveBeenCalled();
+    expect(mockAppointmentUpdate).not.toHaveBeenCalled();
+    expect(mockAppointmentStatusHistoryCreate).not.toHaveBeenCalled();
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 

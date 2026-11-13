@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import {
   getAppointmentsByDateRange,
   createAppointment,
@@ -23,6 +24,9 @@ import { sendAppointmentConfirmation } from "@/lib/whatsapp/notifications";
  * כך שהיומן מקבל את כל התורים לכל תאריכי הטווח (כולל).
  */
 export async function GET(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const params = new URL(request.url).searchParams;
 
   const startStr = params.get("start");
@@ -71,6 +75,9 @@ export async function GET(request: Request) {
  * שדות אופציונליים: treatmentId, room, notes.
  */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await request.json();

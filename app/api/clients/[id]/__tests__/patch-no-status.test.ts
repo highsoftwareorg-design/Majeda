@@ -18,6 +18,10 @@ const { mockClientUpdate, mockGetClientById } = vi.hoisted(() => ({
   mockGetClientById: vi.fn(),
 }));
 
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 vi.mock("next/server", () => ({
   NextResponse: {
     json: (body: unknown, init?: { status?: number }) => ({

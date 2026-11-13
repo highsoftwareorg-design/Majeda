@@ -6,8 +6,12 @@
 
 import { NextResponse } from "next/server";
 import { findDuplicateClientGroups } from "@/lib/db/clients";
+import { auth } from "@/lib/auth/auth";
 
 export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const groups = await findDuplicateClientGroups();
   return NextResponse.json({ groups });
 }

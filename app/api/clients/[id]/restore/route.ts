@@ -12,10 +12,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getClientById } from "@/lib/db/clients";
+import { auth } from "@/lib/auth/auth";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await getClientById(id);

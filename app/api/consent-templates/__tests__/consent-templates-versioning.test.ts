@@ -14,6 +14,10 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // --- Mocks (חייבים להגיע לפני imports של המודולים הממוקים) ---
 
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 const {
   mockFindUnique,
   mockUpdate,

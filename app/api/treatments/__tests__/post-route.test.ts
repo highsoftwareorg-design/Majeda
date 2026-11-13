@@ -20,6 +20,11 @@ const { mockTreatmentCreate } = vi.hoisted(() => ({
   mockTreatmentCreate: vi.fn(),
 }));
 
+// session מאומת קבוע — POST דורש התחברות (§11); ה-middleware לא מכסה /api.
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 vi.mock("next/server", () => ({
   NextResponse: {
     json: (body: unknown, init?: { status?: number }) => ({

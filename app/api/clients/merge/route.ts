@@ -12,8 +12,12 @@ import {
   type MergeClientsInput,
 } from "@/lib/validations/clients";
 import { mergeClients, MergeClientNotFoundError } from "@/lib/db/merge-clients";
+import { auth } from "@/lib/auth/auth";
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: Partial<MergeClientsInput>;
 
   try {

@@ -197,6 +197,22 @@ describe("TwilioWhatsAppService", () => {
 
       expect(result).toBeNull();
     });
+
+    it("validateRequest=false → null גם עם payload תקין של inbound_message (Body + From)", () => {
+      mockValidateRequest.mockReturnValueOnce(false);
+
+      const body = { Body: "מאשרת", From: "whatsapp:+972501234567", DateSent: "2025-01-01" };
+      const service = new TwilioWhatsAppService();
+      const result = service.parseWebhookEvent(body, "invalid-sig");
+
+      expect(mockValidateRequest).toHaveBeenCalledWith(
+        expect.any(String),
+        "invalid-sig",
+        expect.any(String),
+        body
+      );
+      expect(result).toBeNull();
+    });
   });
 });
 

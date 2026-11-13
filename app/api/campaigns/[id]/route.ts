@@ -9,6 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 import { parseCampaignInput } from "@/lib/campaigns/validation";
 
@@ -26,6 +27,9 @@ const campaignInclude = {
 
 /** GET /api/campaigns/:id */
 export async function GET(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const campaign = await prisma.campaign.findUnique({
@@ -40,6 +44,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 /** PATCH /api/campaigns/:id — עדכון חלקי */
 export async function PATCH(request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await prisma.campaign.findUnique({
@@ -102,6 +109,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
 /** DELETE /api/campaigns/:id — ביטול (status=CANCELLED) */
 export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await prisma.campaign.findUnique({

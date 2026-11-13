@@ -6,10 +6,14 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { getClinicSettings, upsertClinicSettings } from "@/lib/db/clinicSettings";
 
 /** GET /api/settings/clinic */
 export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   try {
     const settings = await getClinicSettings();
     return NextResponse.json({ settings });
@@ -24,6 +28,9 @@ export async function GET() {
 
 /** PUT /api/settings/clinic */
 export async function PUT(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await request.json();

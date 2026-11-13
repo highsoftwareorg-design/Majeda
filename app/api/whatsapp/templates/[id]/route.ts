@@ -7,12 +7,16 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 /** GET /api/whatsapp/templates/:id */
 export async function GET(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const template = await prisma.whatsAppTemplate.findUnique({ where: { id } });
@@ -24,6 +28,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 /** PATCH /api/whatsapp/templates/:id — עדכון חלקי */
 export async function PATCH(request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await prisma.whatsAppTemplate.findUnique({ where: { id } });
@@ -82,6 +89,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
 /** DELETE /api/whatsapp/templates/:id — מחיקה רכה (isActive=false) */
 export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const { id } = await params;
 
   const existing = await prisma.whatsAppTemplate.findUnique({ where: { id } });

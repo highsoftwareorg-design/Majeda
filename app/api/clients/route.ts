@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { Gender, MarketingConsentChannel, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { listClients } from "@/lib/db/clients";
+import { auth } from "@/lib/auth/auth";
 import {
   validateCreateClient,
   isClientValid,
@@ -44,6 +45,9 @@ import {
  * כל הפרמטרים אופציונליים; ערכים לא חוקיים מתעלמים בשקט.
  */
 export async function GET(request?: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const params = request
     ? new URL(request.url).searchParams
     : new URLSearchParams();
@@ -164,6 +168,9 @@ export async function GET(request?: Request) {
 
 /** POST /api/clients — יצירת לקוח חדש. */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: CreateClientInput;
 
   try {

@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 
 /**
@@ -15,6 +16,9 @@ import { prisma } from "@/lib/db/prisma";
  * פרמטר אופציונלי `category` (UTILITY | MARKETING) לסינון — משימה 9.2 (בחירת תבנית שיווקית).
  */
 export async function GET(request?: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const category = request
     ? new URL(request.url).searchParams.get("category")
     : null;
@@ -27,6 +31,9 @@ export async function GET(request?: Request) {
 
 /** POST /api/whatsapp/templates — יצירת תבנית חדשה */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: {
     name?: string;
     category?: string;

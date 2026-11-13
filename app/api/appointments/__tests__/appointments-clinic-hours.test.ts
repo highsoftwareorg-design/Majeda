@@ -15,6 +15,11 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // --- Mocks (חייבים לפני ה-imports) ---
 
+// session מאומת קבוע — POST דורש התחברות (§11); ה-middleware לא מכסה /api.
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 const {
   mockGetAppointmentsByDateRange,
   mockCreateAppointment,

@@ -10,7 +10,12 @@
  * `prisma/client-model.integration.test.ts`).
  */
 import { config as loadEnv } from "dotenv";
-import { describe, it, expect, afterAll } from "vitest";
+import { vi, describe, it, expect, afterAll } from "vitest";
+
+// ה-route מוגן ב-auth() — המוק מאפשר לבדוק את לוגיקת ה-handlers מקצה לקצה מול ה-DB.
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
 
 const dbTestsEnabled = process.env.RUN_DB_TESTS === "1";
 if (dbTestsEnabled) loadEnv({ path: ".env.local", quiet: true });

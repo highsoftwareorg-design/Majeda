@@ -11,8 +11,12 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { auth } from "@/lib/auth/auth";
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: { clientIds?: unknown; tagId?: unknown };
   try {
     body = (await request.json()) as { clientIds?: unknown; tagId?: unknown };

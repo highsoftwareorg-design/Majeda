@@ -15,8 +15,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { whatsappService } from "@/lib/whatsapp/index";
+import { auth } from "@/lib/auth/auth";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await req.json();

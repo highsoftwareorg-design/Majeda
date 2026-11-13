@@ -13,6 +13,7 @@
 
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 import {
   DEFAULT_TREATMENT_COLOR,
@@ -21,6 +22,9 @@ import {
 } from "@/lib/validations/treatments";
 
 export async function GET() {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   const treatments = await prisma.treatment.findMany({
     select: {
       id: true,
@@ -35,6 +39,9 @@ export async function GET() {
 
 /** POST /api/treatments — יצירת טיפול חדש (שם, משך ומחיר חובה). */
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+
   let body: unknown;
   try {
     body = await request.json();
