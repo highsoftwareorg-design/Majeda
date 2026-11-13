@@ -4,13 +4,17 @@
  * רשימת תבניות הסכמה (משימה 7.2, FR-CF-01).
  *
  * Client Component: מנהל את מצב "יצירה/עריכה" ורשימת התבניות.
- * מאפשר יצירת תבנית חדשה, עריכת תבנית קיימת, ומחיקה רכה.
+ * מאפשר יצירת תבנית חדשה, עריכת תבנית קיימת, מחיקה רכה ומחיקה לצמיתות (12.5).
+ * הרשימה כוללת גם תבניות לא-פעילות (מחיקה רכה) — עבורן זמינה רק מחיקה לצמיתות.
+ * הודעות הצלחה מוצגות ב-toast (`useToast`, Provider ב-AdminShell).
  *
  * RTL, עברית, mobile-responsive.
  */
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { HardDeleteDialog } from "@/components/common/HardDeleteDialog";
+import { useToast } from "@/components/common/Toast";
 import {
   ConsentTemplateEditor,
   type ConsentTemplateData,
@@ -29,6 +33,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
 export function ConsentTemplatesList({
   initialTemplates,
 }: ConsentTemplatesListProps) {
+  const { toast } = useToast();
   const [templates, setTemplates] =
     useState<ConsentTemplateData[]>(initialTemplates);
   const [view, setView] = useState<"list" | "create" | "edit">("list");
@@ -36,11 +41,16 @@ export function ConsentTemplatesList({
     useState<ConsentTemplateData | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // מחיקה לצמיתות (12.5): התבנית שנבחרה לדיאלוג, מצב שליחה ושגיאה
+  const [hardDeleteTarget, setHardDeleteTarget] =
+    useState<ConsentTemplateData | null>(null);
+  const [hardDeleting, setHardDeleting] = useState(false);
+  const [hardDeleteError, setHardDeleteError] = useState<string | null>(null);
 
-  /** טעינה מחודשת של הרשימה מהשרת */
+  /** טעינה מחודשת של הרשימה מהשרת — כולל תבניות לא-פעילות (למחיקה לצמיתות) */
   async function reloadTemplates() {
     try {
-      const res = await fetch("/api/consent-templates");
+      const res = await fetch("/api/consent-templates?includeInactive=1");
       if (!res.ok) return;
       const data = (await res.json()) as { templates: ConsentTemplateData[] };
       setTemplates(data.templates);
@@ -74,11 +84,42 @@ export function ConsentTemplatesList({
         );
         return;
       }
+      toast(`התבנית "${name}" סומנה כלא פעילה`, { variant: "info" });
       await reloadTemplates();
     } catch {
       setErrorMsg("שגיאת רשת — נסי שוב");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  /** מחיקה לצמיתות (12.5) — נקראת רק לאחר אישור מלא בדיאלוג */
+  async function handleHardDelete(): Promise<void> {
+    if (!hardDeleteTarget) return;
+    setHardDeleting(true);
+    setHardDeleteError(null);
+    try {
+      const res = await fetch(
+        `/api/consent-templates/${hardDeleteTarget.id}/hard-delete`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setHardDeleteError(
+          data.error ?? "אירעה שגיאה במחיקה לצמיתות — נא לנסות שוב"
+        );
+        return;
+      }
+      const deletedName = hardDeleteTarget.name;
+      setHardDeleteTarget(null);
+      toast(`התבנית "${deletedName}" נמחקה לצמיתות`);
+      await reloadTemplates();
+    } catch {
+      setHardDeleteError("שגיאת רשת — נא לנסות שוב");
+    } finally {
+      setHardDeleting(false);
     }
   }
 
@@ -111,7 +152,8 @@ export function ConsentTemplatesList({
             ניהול טפסי הסכמה
           </h1>
           <p className="mt-1 text-sm text-taupe">
-            רשימת תבניות טפסי ההסכמה הפעילות במערכת.
+            תבניות טפסי ההסכמה במערכת. תבניות לא-פעילות מוצגות לצורך מחיקה
+            לצמיתות בלבד.
           </p>
         </div>
         <Button
@@ -138,7 +180,7 @@ export function ConsentTemplatesList({
       {/* רשימה ריקה */}
       {templates.length === 0 && (
         <div className="rounded-xl border border-hairline-dark bg-white px-6 py-12 text-center">
-          <p className="text-taupe">אין תבניות הסכמה פעילות במערכת.</p>
+          <p className="text-taupe">אין תבניות הסכמה במערכת.</p>
           <p className="mt-1 text-sm text-taupe">
             לחצי על &quot;צור תבנית חדשה&quot; כדי להתחיל.
           </p>
@@ -202,7 +244,12 @@ export function ConsentTemplatesList({
               {templates.map((tpl) => (
                 <tr
                   key={tpl.id}
-                  className="hover:bg-champagne/40 transition-colors"
+                  data-inactive={tpl.isActive ? undefined : "true"}
+                  className={
+                    tpl.isActive
+                      ? "hover:bg-champagne/40 transition-colors"
+                      : "bg-champagne/30 hover:bg-champagne/50 transition-colors"
+                  }
                 >
                   <td className="px-4 py-3 font-medium text-charcoal">
                     {tpl.name}
@@ -229,24 +276,40 @@ export function ConsentTemplatesList({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* עריכה ומחיקה רכה — רק לתבניות פעילות; לא-פעילות: מחיקה לצמיתות בלבד */}
+                      {tpl.isActive && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingTemplate(tpl);
+                              setView("edit");
+                            }}
+                            className="rounded-md px-3 py-1.5 text-xs text-gold-dark border border-gold-dark hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold min-h-[36px]"
+                            aria-label={`ערוך תבנית ${tpl.name}`}
+                          >
+                            ערוך
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tpl.id, tpl.name)}
+                            disabled={deletingId === tpl.id}
+                            className="rounded-md px-3 py-1.5 text-xs text-red-600 border border-red-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50 min-h-[36px]"
+                            aria-label={`מחק תבנית ${tpl.name}`}
+                          >
+                            {deletingId === tpl.id ? "מוחק..." : "מחק"}
+                          </button>
+                        </>
+                      )}
                       <button
+                        type="button"
                         onClick={() => {
-                          setEditingTemplate(tpl);
-                          setView("edit");
+                          setHardDeleteError(null);
+                          setHardDeleteTarget(tpl);
                         }}
-                        className="rounded-md px-3 py-1.5 text-xs text-gold-dark border border-gold-dark hover:bg-gold/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold min-h-[36px]"
-                        aria-label={`ערוך תבנית ${tpl.name}`}
+                        className="inline-flex min-h-11 items-center rounded-md border border-error/50 bg-error/5 px-3 text-xs font-semibold text-error transition-colors hover:bg-error/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-1"
+                        aria-label={`מחיקה לצמיתות של תבנית ${tpl.name}`}
                       >
-                        ערוך
-                      </button>
-                      <button
-                        onClick={() => handleDelete(tpl.id, tpl.name)}
-                        disabled={deletingId === tpl.id}
-                        className="rounded-md px-3 py-1.5 text-xs text-red-600 border border-red-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:opacity-50 min-h-[36px]"
-                        aria-label={`מחק תבנית ${tpl.name}`}
-                      >
-                        {deletingId === tpl.id ? "מוחק..." : "מחק"}
+                        מחיקה לצמיתות
                       </button>
                     </div>
                   </td>
@@ -256,6 +319,41 @@ export function ConsentTemplatesList({
           </table>
         </div>
       )}
+
+      {/* דיאלוג מחיקה לצמיתות (12.5) — אישור חזק: הקלדת שם התבנית */}
+      <HardDeleteDialog
+        open={hardDeleteTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setHardDeleteTarget(null);
+            setHardDeleteError(null);
+          }
+        }}
+        warningBody={
+          <>
+            <p className="font-semibold">
+              התבנית &quot;{hardDeleteTarget?.name ?? ""}&quot; תימחק לצמיתות,
+              יחד עם הרשומות הקשורות:
+            </p>
+            <ul className="list-disc ps-5 space-y-0.5">
+              <li className="font-bold text-error">
+                כל הטפסים החתומים המבוססים על תבנית זו יימחקו לצמיתות
+              </li>
+              <li>
+                קובצי ה-PDF של הטפסים החתומים יישארו באחסון לניקוי ידני
+              </li>
+              <li>
+                גרסאות אחרות של התבנית שנוצרו ממנה יישארו, אך ינותקו מהקשר
+                לגרסה זו
+              </li>
+            </ul>
+          </>
+        }
+        confirmPhrase={hardDeleteTarget?.name ?? ""}
+        onConfirm={handleHardDelete}
+        submitting={hardDeleting}
+        error={hardDeleteError}
+      />
     </div>
   );
 }

@@ -8,14 +8,49 @@
 
 import { NextResponse } from "next/server";
 import { AppointmentStatus } from "@prisma/client";
+import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db/prisma";
 import {
   getAppointmentById,
   checkAppointmentConflict,
   checkClientHasValidConsent,
 } from "@/lib/db/appointments";
+import { hardDeleteAppointment } from "@/lib/db/hard-delete-appointment";
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+/**
+ * DELETE /api/appointments/[id] — מחיקה לצמיתות של תור (משימה 12.4).
+ *
+ * אין soft-delete לתורים; המחיקה מנתקת טפסים חתומים (נשארים אצל הלקוח/ה)
+ * ומוחקת דריסות הסכמה והיסטוריית סטטוס — ראו `lib/db/hard-delete-appointment.ts`.
+ * אבטחה (§11): נדרש session מחובר בלבד — אין RBAC לפי החלטת הבעלים.
+ */
+export async function DELETE(_request: Request, { params }: RouteParams) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  let deleted: boolean;
+  try {
+    deleted = await hardDeleteAppointment(id);
+  } catch {
+    // ללא פירוט השגיאה; הטרנזקציה בוטלה (rollback) — לא נשאר תור "חצי מחוק".
+    return NextResponse.json(
+      { error: "אירעה שגיאה במחיקה לצמיתות — לא בוצע שינוי, נא לנסות שוב" },
+      { status: 500 }
+    );
+  }
+
+  if (!deleted) {
+    return NextResponse.json({ error: "תור לא נמצא" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
+}
 
 const VALID_STATUSES: AppointmentStatus[] = [
   "SCHEDULED",
@@ -36,6 +71,12 @@ const VALID_STATUSES: AppointmentStatus[] = [
  * אם רק אחד מהם מסופק, מאמת מול הערך הקיים במסד הנתונים.
  */
 export async function PATCH(request: Request, { params }: RouteParams) {
+  // אבטחה (§11): ה-middleware אינו מכסה נתיבי /api — נדרשת בדיקת session כאן.
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+  }
+
   const { id } = await params;
 
   // ודא שהתור קיים

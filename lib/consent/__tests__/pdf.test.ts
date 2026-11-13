@@ -1,5 +1,10 @@
 /**
+ * @vitest-environment node
+ *
  * בדיקות יחידה ל-generateConsentPdf ו-saveConsentPdf — משימה 7.8 (FR-CF-08).
+ *
+ * סביבת node (לא jsdom): pdf-lib בודק `font instanceof Uint8Array` — ב-jsdom ה-realm של
+ * Uint8Array שונה מזה של Buffer (הגופן העברי המוטמע) והבדיקה נכשלת; בפרודקשן (Node runtime) זה תקין.
  *
  * כל קריאות ל-Prisma ו-Vercel Blob ממוקות — אין גישה אמיתית לבסיס הנתונים או לאחסון.
  *

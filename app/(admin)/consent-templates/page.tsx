@@ -1,8 +1,9 @@
 /**
  * מסך ניהול טפסי הסכמה (משימה 7.2, FR-CF-01).
  *
- * Server Component: שולף רשימת תבניות פעילות מה-DB ומעביר ל-ConsentTemplatesList
- * (Client Component) שמנהל את מצב הרשימה, יצירה ועריכה.
+ * Server Component: שולף את כל התבניות (פעילות תחילה, ואז לא-פעילות) מה-DB ומעביר
+ * ל-ConsentTemplatesList (Client Component) שמנהל את מצב הרשימה, יצירה ועריכה.
+ * תבניות לא-פעילות (מחיקה רכה) מוצגות כדי לאפשר מחיקה לצמיתות (משימה 12.5, מעקב).
  *
  * נתיב: /consent-templates
  * הרשאות: מוגן ב-middleware.ts (דרשה כניסה).
@@ -23,8 +24,7 @@ export default async function ConsentTemplatesPage() {
   await connection();
 
   const rawTemplates = await prisma.consentTemplate.findMany({
-    where: { isActive: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
     select: {
       id: true,
       name: true,

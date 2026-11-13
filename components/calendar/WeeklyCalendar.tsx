@@ -24,6 +24,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { HardDeleteAppointmentDialog } from "@/components/calendar/HardDeleteAppointmentDialog";
 
 // ---------------------------------------------------------------------------
 // טיפוסים
@@ -1239,6 +1240,14 @@ export function WeeklyCalendar({
   // ---- מצב דיאלוג תור חדש (משימה 5.9, FR-AP-02) ----
   const [showNewApt, setShowNewApt] = useState(false);
 
+  // ---- מצב דיאלוג מחיקה לצמיתות של תור (משימה 12.4) ----
+  const [deleteApt, setDeleteApt] = useState<SerializedAppointment | null>(null);
+
+  /** הסרת תור שנמחק לצמיתות מהתצוגה (ללא שליפה מחדש — הנתונים מקומיים ליומן). */
+  const handleAppointmentDeleted = useCallback((appointmentId: string) => {
+    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId));
+  }, []);
+
   /**
    * מפתח הטווח שנטען אחרון (`w:<שבוע>` או `m:<חודש>`).
    * הנתונים הראשונים כבר הגיעו מה-SSR לשבוע הנוכחי — לכן המפתח ההתחלתי הוא השבוע.
@@ -2255,6 +2264,20 @@ export function WeeklyCalendar({
                       >
                         שנה מועד
                       </button>
+                      {/* מחיקה לצמיתות של התור (משימה 12.4) */}
+                      <button
+                        type="button"
+                        className={cn(
+                          "shrink-0 px-3 text-xs font-medium text-error min-h-[44px]",
+                          "border-s border-border hover:bg-error/5",
+                          "transition-colors min-w-[72px]",
+                          "focus:outline-none focus:ring-2 focus:ring-error/40 focus:ring-inset"
+                        )}
+                        onClick={() => setDeleteApt(apt)}
+                        aria-label={`מחיקה לצמיתות של התור של ${clientName}`}
+                      >
+                        מחיקה לצמיתות
+                      </button>
                     </div>
 
                     {/* שינוי סטטוס — רק סטטוסים חוקיים (FR-AP-04, משימה 5.8) */}
@@ -2593,6 +2616,20 @@ export function WeeklyCalendar({
                             >
                               שנה מועד
                             </button>
+                            {/* מחיקה לצמיתות של התור (משימה 12.4) */}
+                            <button
+                              type="button"
+                              className={cn(
+                                "shrink-0 px-3 text-xs font-medium text-error",
+                                "border-s border-border hover:bg-error/5",
+                                "transition-colors min-w-[72px]",
+                                "focus:outline-none focus:ring-2 focus:ring-error/40 focus:ring-inset"
+                              )}
+                              onClick={() => setDeleteApt(apt)}
+                              aria-label={`מחיקה לצמיתות של התור של ${apt.client.firstName} ${apt.client.lastName}`}
+                            >
+                              מחיקה לצמיתות
+                            </button>
                           </div>
 
                           {/* שורת שינוי סטטוס — רק אם יש סטטוסים אפשריים */}
@@ -2818,10 +2855,40 @@ export function WeeklyCalendar({
                   ביטול
                 </Button>
               </div>
+
+              {/* מחיקה לצמיתות של התור (משימה 12.4) — גם מהגריד דרך כפתור "מועד" */}
+              <div className="mt-2 border-t border-border pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteApt(rescheduleApt);
+                    setRescheduleApt(null);
+                    setRescheduleDate("");
+                    setRescheduleTime("");
+                    setRescheduleError(null);
+                  }}
+                  className={cn(
+                    "min-h-11 w-full rounded-md border border-error/50 bg-error/5 px-3 text-xs font-semibold text-error",
+                    "transition-colors hover:bg-error/10",
+                    "focus:outline-none focus:ring-2 focus:ring-error focus:ring-offset-1"
+                  )}
+                >
+                  מחיקה לצמיתות
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ================================================================
+          דיאלוג מחיקה לצמיתות של תור (משימה 12.4)
+          ================================================================ */}
+      <HardDeleteAppointmentDialog
+        appointment={deleteApt}
+        onClose={() => setDeleteApt(null)}
+        onDeleted={handleAppointmentDeleted}
+      />
 
       {/* ================================================================
           דיאלוג יצירת תור חדש (משימה 5.9, FR-AP-02)

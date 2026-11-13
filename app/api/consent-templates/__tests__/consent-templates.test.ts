@@ -20,6 +20,10 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // --- Mocks (חייבים לפני ה-imports של המודולים הממוקים) ---
 
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 const {
   mockCreate,
   mockFindMany,
@@ -199,6 +203,26 @@ describe("GET /api/consent-templates", () => {
     await listGET();
 
     expect(mockFindMany).toHaveBeenCalledOnce();
+    const callArg = mockFindMany.mock.calls[0][0];
+    expect(callArg.where).toEqual({ isActive: true });
+  });
+
+  it("?includeInactive=1 → ללא סינון isActive, פעילות תחילה (מסך ניהול, 12.5)", async () => {
+    await listGET(
+      new Request("http://localhost/api/consent-templates?includeInactive=1")
+    );
+
+    const callArg = mockFindMany.mock.calls[0][0];
+    expect(callArg.where).toBeUndefined();
+    expect(callArg.orderBy).toEqual([
+      { isActive: "desc" },
+      { createdAt: "desc" },
+    ]);
+  });
+
+  it("Request ללא includeInactive → עדיין מסנן isActive=true", async () => {
+    await listGET(new Request("http://localhost/api/consent-templates"));
+
     const callArg = mockFindMany.mock.calls[0][0];
     expect(callArg.where).toEqual({ isActive: true });
   });

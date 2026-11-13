@@ -10,6 +10,7 @@
 import { MessageCircle, Calendar, MapPin, Tag as TagIcon } from "lucide-react";
 import { EditClientDialog } from "@/components/clients/EditClientDialog";
 import { ArchiveClientDialog } from "@/components/clients/ArchiveClientDialog";
+import { HardDeleteClientDialog } from "@/components/clients/HardDeleteClientDialog";
 import type { ClientFormTagOption } from "@/components/clients/ClientFormFields";
 
 // טיפוסים מינימליים — תואמים לפלט של getClientById (כולל include תגיות)
@@ -144,6 +145,13 @@ export function ClientProfileHeader({
             }}
           />
           <ArchiveClientDialog
+            client={{
+              id: client.id,
+              firstName: client.firstName,
+              lastName: client.lastName,
+            }}
+          />
+          <HardDeleteClientDialog
             client={{
               id: client.id,
               firstName: client.firstName,

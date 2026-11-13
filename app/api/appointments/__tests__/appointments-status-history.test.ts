@@ -36,6 +36,11 @@ vi.mock("next/server", () => ({
   },
 }));
 
+// session מאומת קבוע — PATCH דורש התחברות (§11); ה-middleware לא מכסה /api.
+vi.mock("@/lib/auth/auth", () => ({
+  auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+}));
+
 vi.mock("@/lib/db/appointments", () => ({
   getAppointmentsByDateRange: vi.fn(),
   createAppointment: vi.fn(),

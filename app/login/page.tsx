@@ -12,7 +12,16 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
-  const session = await auth();
+  // auth() יכול לזרוק JWTSessionError כאשר עוגיית ה-session בדפדפן הוצפנה עם
+  // AUTH_SECRET אחר ("no matching decryption secret"). ללא try/catch, עמוד
+  // ההתחברות עצמו קורס לעמוד לבן ריק — והמשתמש "נתקע" (אינו יכול אפילו להתחבר
+  // מחדש כדי להחליף את העוגייה). לכן מתייחסים לשגיאה כ"לא מחובר".
+  let session = null;
+  try {
+    session = await auth();
+  } catch {
+    session = null;
+  }
   const { callbackUrl, error } = await searchParams;
 
   if (session) {

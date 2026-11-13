@@ -18,6 +18,7 @@ import {
   TreatmentFormDialog,
   type TreatmentListItem,
 } from "@/components/treatments/TreatmentFormDialog";
+import { HardDeleteTreatmentDialog } from "@/components/treatments/HardDeleteTreatmentDialog";
 
 const PRICE_FORMATTER = new Intl.NumberFormat("he-IL", {
   style: "currency",
@@ -97,18 +98,23 @@ export function TreatmentsCatalog({ initialTreatments }: TreatmentsCatalogProps)
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => openEdit(treatment)}
-                  aria-label={`עריכת ${treatment.name}`}
-                  className={cn(
-                    "min-h-11 shrink-0 rounded-lg border border-gold-antique/40 bg-porcelain px-4 text-sm font-medium text-charcoal",
-                    "transition-colors hover:bg-champagne",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark focus-visible:ring-offset-1"
-                  )}
-                >
-                  עריכה
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(treatment)}
+                    aria-label={`עריכת ${treatment.name}`}
+                    className={cn(
+                      "min-h-11 shrink-0 rounded-lg border border-gold-antique/40 bg-porcelain px-4 text-sm font-medium text-charcoal",
+                      "transition-colors hover:bg-champagne",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-dark focus-visible:ring-offset-1"
+                    )}
+                  >
+                    עריכה
+                  </button>
+                  <HardDeleteTreatmentDialog
+                    treatment={{ id: treatment.id, name: treatment.name }}
+                  />
+                </div>
               </div>
 
               <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">

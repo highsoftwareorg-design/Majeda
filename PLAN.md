@@ -962,6 +962,225 @@ MAJIDA Beauté Center — מערכת ניהול למרפאת יופי וטיפו
 
 ---
 
+### 12. מחיקה לצמיתות (Hard Delete) — 4 סוגי אובייקטים (דרישת בעלים, 2026-11-13)
+
+> **היקף מאושר ע"י הבעלים (אין לפתוח מחדש):** אפשרות "מחיקה לצמיתות" בממשק הניהול ל-4 סוגי אובייקטים — לקוחות, טיפולים (קטלוג), תורים, תבניות הסכמה. ההתנהגות היא **CASCADE** (מחיקת האובייקט מטפלת ברשומות הקשורות). **אין RBAC** — המחיקה מוגנת באימות כניסה בלבד (כמו שאר נתיבי הניהול, בדיקת session). כל ה-UI בעברית, `dir="rtl"`, מותאם נייד (hebrew-ui), עם שלב אישור **חזק** לפעולה בלתי הפיכה — נבדל וחמור יותר מדיאלוג הארכוב הקיים.
+>
+> **החלטת ארכיטקטורה מרכזית — ללא מיגרציה:** כל מחיקה מתבצעת ב-`prisma.$transaction` ברמת האפליקציה עם מחיקות/ניתוקים מפורשים בסדר ילד→הורה, **מבלי לשנות את הסכמה** (לא מוסיפים `onDelete: Cascade`). זאת כדי להימנע ממיגרציה (המיגרציות כאן ידניות). חלק מהיחסים כיום הם Restrict/ברירת-מחדל (למשל `Appointment.clientId`, `SignedConsent.clientId`, `FollowUpRule.treatmentId`, `VisitTreatment.treatment` עם `onDelete: Restrict`, `ConsentOverride.appointmentId`, `VisitAmendment.visitId`, `FollowUp.visitId/clientId`) — ולכן מחיקה "נאיבית" של ההורה תיכשל; הטרנזקציה המפורשת פותרת זאת בלי מיגרציה. יחסים שכבר Cascade (`ClientTag`, `VisitTreatment` על `visitId`, `AppointmentStatusHistory`) יטופלו ממילא, ומחיקה מפורשת שלהם לא תזיק.
+>
+> **הערת R2 (PDF יתומים):** מחיקת שורת `SignedConsent` מה-DB משאירה את ה-PDF המקושר (`pdfStorageKey`) יתום ב-Cloudflare R2 — **אין כיום פונקציית מחיקה ב-`lib/consent/r2.ts`** (רק `Put`/`Get`). זה מקובל לשלב זה; הטרנזקציה **תאסוף ותחזיר את רשימת ה-`pdfStorageKey`** של ה-SignedConsent שנמחקו (בתגובת ה-API ו/או ל-`console.info` ללא PII) לצורך ניקוי ידני/עתידי. מחיקת אובייקט מ-R2 מחוץ להיקף הנוכחי.
+
+- [x] 12.1 תשתית משותפת למחיקה לצמיתות — דיאלוג אישור חזק + הערות אבטחה/R2.
+  - מכסה: בסיס משותף ל-12.2–12.5; דרישת "אישור חזק לפעולה בלתי הפיכה".
+  - יישום (hebrew-ui — עברית, RTL, נייד):
+    - רכיב משותף `components/common/HardDeleteDialog.tsx` (או `components/ui/`) מבוסס על ה-`Dialog` הקיים, **בסגנון שגיאה/אדום** (טוקני `--color-error`), כותרת "מחיקה לצמיתות", טקסט אזהרה מפורש **"פעולה בלתי הפיכה — לא ניתן לשחזר"**, פירוט מה יימחק בנוסף (cascade) בטקסט דינמי שמתקבל כ-prop, וכפתור מחיקה אדום **מנוטרל עד שהמשתמש/ת מקליד/ה מחרוזת אישור** (שם האובייקט או המילה "מחק") — הגנה מפני לחיצה בשוגג, חמורה יותר מדיאלוג הארכוב. פרופס: `title`, `warningBody`, `confirmPhrase`, `onConfirm`, מצבי `submitting`/`error`.
+    - **ללא** קריאת API משלה — מקבל `onConfirm` מהקורא; כל קורא (12.2–12.5) מספק את ה-fetch וה-redirect/refresh שלו.
+    - תיעוד בקוד: כל נתיב מחיקה חייב בדיקת session (כמו שאר נתיבי `/api/*` של הניהול) — אין RBAC, אימות בלבד.
+  - בדיקה: הדיאלוג נפתח, כפתור המחיקה מנוטרל עד הקלדת מחרוזת האישור, `onConfirm` נקרא רק לאחר אישור; הרינדור RTL ומותאם נייד; בדיקת a11y (role="alertdialog"/aria).
+
+- [x] 12.2 מחיקת לקוח/ה לצמיתות — API (טרנזקציה cascade) + UI בפרופיל + בדיקות.
+  - מכסה: מחיקה פיזית מלאה של לקוח/ה וכל רשומותיו/ה, בנוסף לארכוב הרך הקיים (§11.6).
+  - **לוגיקת cascade (סדר מפורש בטרנזקציה, ילד→הורה):**
+    1. איסוף מזהים: `appointmentIds`, `visitIds`, וכן `pdfStorageKey[]` מכל `SignedConsent` של הלקוח/ה (להחזרה — הערת R2).
+    2. `adminTask.deleteMany({ where: { clientId } })` (Restrict על `followUpId` ו-`clientId`).
+    3. `followUp.deleteMany({ where: { clientId } })` (Restrict על `visitId`/`clientId`; מכסה גם מעקבים מקושרי-ביקור).
+    4. `visitAmendment.deleteMany({ where: { visitId: { in: visitIds } } })` (Restrict על `visitId`).
+    5. `visit.deleteMany({ where: { clientId } })` (`VisitTreatment` נמחק אוטומטית ב-Cascade על `visitId`).
+    6. `consentOverride.deleteMany({ where: { appointmentId: { in: appointmentIds } } })` (Restrict על `appointmentId`).
+    7. `signedConsent.deleteMany({ where: { clientId } })` (Restrict על `clientId`; PDF-ים נשארים יתומים ב-R2 — מחזירים את המפתחות).
+    8. `appointment.deleteMany({ where: { clientId } })` (`AppointmentStatusHistory` נמחק ב-Cascade; Restrict המקורי על `clientId` נפתר כי הילדים כבר נמחקו).
+    9. `message.deleteMany({ where: { clientId } })` (אחרת היה SetNull — כאן מוחקים לפי בחירת "cascade מלא").
+    10. `clientTag.deleteMany({ where: { clientId } })` (Cascade ממילא; מפורש למען הבהירות).
+    11. `client.delete({ where: { id } })`.
+  - API: נתיב **חדש** `app/(admin)/../../api/clients/[id]/hard-delete/route.ts` → `DELETE /api/clients/[id]/hard-delete` (לא דורסים את `DELETE /api/clients/[id]` הקיים שהוא ארכוב רך). בדיקת session; 404 אם לא קיים; מחזיר `{ success: true, orphanedPdfKeys: [...] }`.
+  - UI (hebrew-ui): כפתור **נפרד** "מחיקה לצמיתות" ב-`ClientProfileHeader.tsx` (ליד "העברה לארכיון", אך בסגנון אדום ומובחן), הפותח את `HardDeleteDialog` (12.1) עם `confirmPhrase` = שם הלקוח/ה המלא ופירוט ה-cascade (תורים, ביקורים, טפסים חתומים, הודעות). לאחר הצלחה: `router.push("/clients")` + `router.refresh()` + toast "הלקוח/ה נמחק/ה לצמיתות".
+  - בדיקה: יצירת לקוח/ה עם תור+ביקור+טופס חתום+הודעה → מחיקה לצמיתות מסירה את כולם מה-DB (ספירות = 0); הנתיב מחזיר `orphanedPdfKeys`; ניסיון שליפת הפרופיל מחזיר 404; הדיאלוג דורש הקלדת שם לאישור.
+
+- [x] 12.3 מחיקת טיפול (קטלוג) לצמיתות — API (detach + cascade חלקי) + UI בקטלוג + בדיקות.
+  - מכסה: מחיקה פיזית של רשומת `Treatment` מהקטלוג, **בלי** למחוק תורים/ביקורים של לקוחות.
+  - **לוגיקת cascade/detach (סדר מפורש בטרנזקציה):**
+    1. `appointment.updateMany({ where: { treatmentId: id }, data: { treatmentId: null } })` — **ניתוק**, לא מחיקה (התור נשמר ללא טיפול).
+    2. `client.updateMany({ where: { requestedTreatmentId: id }, data: { requestedTreatmentId: null } })` — ניתוק הטיפול המבוקש מדף הנחיתה.
+    3. `followUp.updateMany({ where: { ruleId: { in: ruleIds } }, data: { ruleId: null } })` ואז `followUpRule.deleteMany({ where: { treatmentId: id } })` (Restrict על `treatmentId`; `FollowUp.ruleId` אופציונלי → ניתוק).
+    4. `visitTreatment.deleteMany({ where: { treatmentId: id } })` — **החלטה מאושרת (cascade):** מחיקת שורות הקו-פריט ההיסטוריות (יחס `onDelete: Restrict`). הביקור עצמו נשמר, אך פריט הטיפול הספציפי יוסר מהיסטוריית הביקור. **ראו דגל להחלטת בעלים ב-Notes למטה.**
+    5. `treatment.delete({ where: { id } })`.
+  - API: הוספת מתודת `DELETE` ל-`app/(admin)/../api/treatments/[id]/route.ts` (כיום קיים `PATCH` בלבד; אין soft-delete לטיפולים ולכן `DELETE` = מחיקה לצמיתות). בדיקת session; 404 אם לא קיים.
+  - UI (hebrew-ui): פעולת "מחיקה לצמיתות" בשורת הטיפול בקטלוג `app/(admin)/treatments/page.tsx` ו/או במסך הטיפול `app/(admin)/treatments/[id]/page.tsx`, דרך `HardDeleteDialog` עם פירוט: "התורים/בקשות הטיפול ינותקו (לא יימחקו); כללי המעקב ופריטי הטיפול בביקורים היסטוריים יימחקו". לאחר הצלחה: רענון הקטלוג / `router.push("/treatments")` + toast.
+  - בדיקה: טיפול המקושר לתור, ללקוח (requested), לכלל מעקב ולביקור → מחיקה לצמיתות: התור וה-client נשמרים עם `treatmentId=null`/`requestedTreatmentId=null`; `FollowUpRule` ו-`VisitTreatment` של הטיפול נמחקו; הטיפול נעלם מהקטלוג.
+
+- [x] 12.4 מחיקת תור לצמיתות — API (cascade) + UI ביומן + בדיקות.
+  - מכסה: מחיקה פיזית של `Appointment` מהיומן (אין soft-delete לתורים — יש סטטוס "בוטל", אך הבעלים ביקש מחיקה ממשית).
+  - **לוגיקת cascade (סדר מפורש בטרנזקציה):**
+    1. `signedConsent.updateMany({ where: { appointmentId: id }, data: { appointmentId: null } })` — **ניתוק** הטופס החתום (לא נמחק — נשאר אצל הלקוח/ה).
+    2. `consentOverride.deleteMany({ where: { appointmentId: id } })` (Restrict על `appointmentId`; רשומת audit ששייכת רק לתור).
+    3. `appointmentStatusHistory.deleteMany({ where: { appointmentId: id } })` (Cascade ממילא; מפורש למען הבהירות).
+    4. `appointment.delete({ where: { id } })`.
+    - הערה: שורות `Message` של תזכורות התור **אינן** נמחקות — הקישור אליהן הוא `sourceType/sourceId` רך (ללא FK). יומן ההודעות נשאר; `sourceId` עשוי להצביע לתור שנמחק (dangling רך, מקובל).
+  - API: הוספת מתודת `DELETE` ל-`app/(admin)/../api/appointments/[id]/route.ts` (כיום `PATCH` בלבד). בדיקת session; 404 אם לא קיים.
+  - UI (hebrew-ui): פעולת "מחיקה לצמיתות" בכרטיס/פרטי התור ב-`components/calendar/WeeklyCalendar.tsx` (ובתצוגת סדר-היום/חודש אם רלוונטי), דרך `HardDeleteDialog` עם פירוט: "היסטוריית הסטטוס ודריסות ההסכמה של התור יימחקו; טפסים חתומים ינותקו ויישמרו". לאחר הצלחה: רענון היומן + toast; הסרת התור מהתצוגה.
+  - בדיקה: תור עם היסטוריית סטטוס + ConsentOverride + SignedConsent מקושר → מחיקה לצמיתות: התור וההיסטוריה וה-override נמחקים; ה-SignedConsent נשאר עם `appointmentId=null`; התור נעלם מהיומן.
+
+- [x] 12.5 מחיקת תבנית הסכמה לצמיתות — API (self-ref + cascade) + UI ברשימה + בדיקות.
+  - מכסה: מחיקה פיזית של `ConsentTemplate`, בנוסף ל-soft-delete הקיים (`isActive=false` ב-`DELETE /api/consent-templates/[id]`).
+  - **לוגיקת cascade (סדר מפורש בטרנזקציה):**
+    1. איסוף `pdfStorageKey[]` מכל `SignedConsent` של התבנית (להחזרה — הערת R2).
+    2. `consentTemplate.updateMany({ where: { previousVersionId: id }, data: { previousVersionId: null } })` — ניתוק הקשר העצמי (`ConsentVersions`) מגרסאות שמצביעות לתבנית זו, אחרת תיכשל מחיקה.
+    3. `signedConsent.deleteMany({ where: { templateId: id } })` — **לפי בחירת cascade המאושרת**, מחיקת הטפסים החתומים שמבוססים על התבנית (Restrict על `templateId`; PDF-ים נשארים יתומים ב-R2 — מחזירים מפתחות).
+    4. `consentTemplate.delete({ where: { id } })`.
+  - API: נתיב **חדש** `app/(admin)/../api/consent-templates/[id]/hard-delete/route.ts` → `DELETE /api/consent-templates/[id]/hard-delete` (לא דורסים את ה-`DELETE` הקיים שהוא soft-delete). בדיקת session; 404 אם לא קיים; מחזיר `{ success: true, orphanedPdfKeys: [...] }`.
+  - UI (hebrew-ui): פעולת "מחיקה לצמיתות" בשורת התבנית ב-`components/consent/ConsentTemplatesList.tsx` (`/consent-templates`), דרך `HardDeleteDialog` עם אזהרה מודגשת: "כל הטפסים החתומים המבוססים על תבנית זו יימחקו לצמיתות". לאחר הצלחה: רענון הרשימה + toast.
+  - בדיקה: תבנית עם גרסה עוקבת (previousVersionId) ועם SignedConsent → מחיקה לצמיתות: הקשר העצמי נותק, הטפסים החתומים נמחקו, התבנית נעלמה; הנתיב מחזיר `orphanedPdfKeys`.
+
+---
+
+### 13. סריקת אבטחה — אימות session לכל נתיבי ה-API המנהליים (SRS §11, ממצא 2026-11-13)
+
+> **ממצא מאומת (אין לחקור מחדש):** ה-`matcher` ב-`middleware.ts` מכסה **רק** נתיבי עמודים (`/dashboard`, `/clients`, `/calendar`, `/settings`, `/consent-templates`, `/treatments`, `/tasks`, `/campaigns`) ו**אינו** מכסה `/api/*`. לכן כל נתיב API חייב לקרוא בעצמו ל-`auth()` מ-`@/lib/auth/auth`. כיום רק 9 קבצי route עושים זאת (`appointments/[id]`, `treatments/[id]`, שני ה-`hard-delete`, `consent-tokens/[id]/pdf`, `appointments/export`, `clients/export`, `admin-tasks/[id]`, `clients/[id]/visits/[visitId]`). **כל שאר ה-handlers — GET ומשנים כאחד — פתוחים ללא אימות**, כולל `POST /api/campaigns/[id]/send` (שליחת WhatsApp לכל הנמענים) ו-GET-ים שמחזירים PII של לקוחות (רשימות, הודעות, טפסים, דוחות).
+>
+> **הדפוס הקיים לשימוש חוזר (מילה במילה, ללא שינוי נוסח):**
+> ```ts
+> const session = await auth();
+> if (!session) return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
+> ```
+> ה-import: `import { auth } from "@/lib/auth/auth";`. הבדיקה חייבת להיות **הפקודה הראשונה** בכל handler (לפני `params`, לפני `request.json()`, לפני כל גישה ל-DB).
+>
+> **ציבורי בכוונה — חייב להישאר ללא אימות session (allowlist סגור):**
+> 1. `/api/auth/*` — נתיבי NextAuth עצמם (`app/api/auth/[...nextauth]/route.ts`). **חסימה שלהם שוברת את ההתחברות.**
+> 2. `/api/sign/[token]/submit` (POST) — חתימת לקוח/ה; ה-token הוא האישור (§7).
+> 3. `/api/whatsapp/webhook` (GET+POST) — Twilio/Meta; מאומת בחתימת `X-Twilio-Signature` (ראו 13.6) ו-`hub.verify_token`.
+> 4. `/api/cron/run` (GET) — Vercel Cron; מאומת ב-`Authorization: Bearer <CRON_SECRET>` (אין עוגיית session בקריאות cron — חובה ב-allowlist של ה-middleware).
+> 
+> טופס יצירת הקשר של דף הנחיתה הוא **Server Action** (`lib/actions/contact.ts`, `"use server"`) ולא נתיב תחת `/api` — אינו מושפע. אומת ב-Grep: אין קוד שאינו בדיקה שמייבא handlers ישירות (`from "@/app/api/..."`) ואין `fetch` צד-שרת ל-`/api/*` עם URL מוחלט — לכן גידור ה-GET-ים לא ישבור עמודי שרת.
+>
+> **כלל הבדיקות (חל על 13.2–13.5):** קובץ בדיקה שמייבא handler שקיבל `auth()` חייב למקם, **לפני** שאר ה-`vi.mock`, את המוק:
+> ```ts
+> vi.mock("@/lib/auth/auth", () => ({
+>   auth: () => Promise.resolve({ user: { id: "admin", email: "admin@test" } }),
+> }));
+> ```
+> (קיים כבר ב-`app/api/appointments/__tests__/appointments-route.test.ts` שורות 61–63 — להעתיק). בנוסף, בכל קובץ route שנגעו בו יש להוסיף **בדיקת `401 ללא session` אחת** לפי הדפוס ב-`app/api/appointments/__tests__/hard-delete-route.test.ts` (`mockAuth` דרך `vi.hoisted`, `mockAuth.mockResolvedValueOnce(null)`, ציפייה ל-`status 401` + `error === "נדרשת התחברות"` + שה-DB/שירות **לא** נקרא). קבצי בדיקה יושבים לעיתים ב-`__tests__` של תיקיית ה-route ולעיתים בתיקיית הורה — ה-coder **חייב** להריץ `Grep` על `from "@/app/api/<path>/route"` בכל הריפו כדי למצוא את כל המייבאים לפני העריכה.
+>
+> **סביבת בדיקות:** ה-Bash של תת-הסוכנים אינו יכול להריץ `vitest` (מגבלת sandbox) — הבדיקות מורצות ע"י הסשן הראשי. coder/tester מאמתים סטטית + `npx tsc --noEmit`.
+
+- [x] 13.1 Defense-in-depth ב-middleware — הרחבת ה-matcher ל-`/api/:path*` עם allowlist ציבורי, תגובת JSON 401 ל-API, ועזר טהור ניתן לבדיקה.
+  - מכסה: שכבת הגנה שנייה (מעבר ל-`auth()` בכל route) שחוסמת בקשות לא-מאומתות ל-`/api/*` כבר ב-Edge, ומבטיחה שנתיב חדש שישכח `auth()` עדיין יהיה מוגן.
+  - יישום:
+    - קובץ חדש `lib/auth/public-paths.ts` — **מודול טהור, ללא imports** (Edge-safe), המייצא:
+      - `PUBLIC_API_PREFIXES: readonly string[]` = `["/api/auth/", "/api/sign/", "/api/whatsapp/webhook", "/api/cron/run"]`.
+      - `isPublicApiPath(pathname: string): boolean` — `true` אם ה-pathname שווה לאחד הפריפיקסים (ללא "/" סופי) או מתחיל בו; אחרת `false`. דוגמאות: `/api/auth/session` → true, `/api/auth/callback/credentials` → true, `/api/sign/abc123/submit` → true, `/api/whatsapp/webhook` → true, `/api/whatsapp/webhook/` → true, `/api/cron/run` → true; `/api/clients` → false, `/api/whatsapp/templates` → false, `/api/signatures` → false (אין התאמת פריפיקס חלקית על מקטע), `/api/authx` → false.
+      - `isApiPath(pathname: string): boolean` — `pathname === "/api" || pathname.startsWith("/api/")`.
+    - `middleware.ts`:
+      - import של `isApiPath`, `isPublicApiPath` מ-`@/lib/auth/public-paths` (**ללא** Prisma/bcrypt/`@/lib/auth/auth` — רק `next-auth/jwt` כמו היום).
+      - בתחילת ה-middleware: `if (isApiPath(pathname) && isPublicApiPath(pathname)) return NextResponse.next();` — לפני קריאת `getToken`.
+      - כש-`token` ריק: אם `isApiPath(pathname)` → `return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });` (אותו נוסח בדיוק כמו ב-routes); אחרת — ההפניה הקיימת ל-`/login?callbackUrl=` נשארת **ללא שינוי**.
+      - הוספת `"/api/:path*"` ל-`config.matcher` (שאר הערכים נשארים). הערת קוד בעברית: ה-matcher מכסה את כל `/api`, וה-allowlist הציבורי מוגדר ב-`lib/auth/public-paths.ts` בלבד — אין לשכפל אותו.
+      - עדכון ההערה בראש הקובץ (כיום "task 1.11 … /clients, /clients/[id], /calendar") כך שתשקף גם את `/api`.
+    - **אין** להסיר את בדיקות `auth()` מה-routes (13.2–13.5) — ה-middleware הוא שכבה נוספת ולא תחליף (בדיקות יחידה של routes רצות בלי middleware; וב-Next 16 ייתכנו מסלולי קריאה שעוקפים אותו).
+  - בדיקות: `lib/auth/__tests__/public-paths.test.ts` — מכסה את כל הדוגמאות לעיל (true/false), כולל מקרי קצה: pathname ללא "/" מוביל, "/" סופי, רגישות לאותיות (אין נרמול — `/API/clients` אינו API-path לפי הכלל; לתעד), ו-`/api` בלבד. אין בדיקת Edge runtime ל-middleware עצמו.
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; `public-paths.test.ts` ירוק; `middleware.ts` עדיין מייבא רק `next-auth/jwt`, `next/server`, `@/lib/auth/public-paths`; `/api/auth/*` ו-`/api/cron/run` עוברים ללא session; `/api/clients` ללא עוגייה מחזיר JSON 401 (לא redirect); `/clients` ללא עוגייה עדיין מופנה ל-`/login`.
+
+- [x] 13.2 `auth()` בכל handler — תחום לקוחות וסגמנטים (11 קבצי route) + עדכון בדיקות.
+  - קבצים ו-handlers (להוסיף את הדפוס כפקודה ראשונה בכל אחד):
+    - `app/api/clients/route.ts` [GET, POST]
+    - `app/api/clients/[id]/route.ts` [GET, PATCH, DELETE]
+    - `app/api/clients/[id]/restore/route.ts` [POST]
+    - `app/api/clients/[id]/visits/route.ts` [POST]
+    - `app/api/clients/[id]/consents/route.ts` [GET]
+    - `app/api/clients/[id]/messages/route.ts` [GET]
+    - `app/api/clients/bulk-tag/route.ts` [POST]
+    - `app/api/clients/merge/route.ts` [POST]
+    - `app/api/clients/duplicates/route.ts` [GET]
+    - `app/api/segments/route.ts` [GET, POST]
+    - `app/api/segments/[id]/route.ts` [DELETE]
+    - (כבר מוגנים — אין לגעת: `clients/[id]/hard-delete`, `clients/export`, `clients/[id]/visits/[visitId]`.)
+    - שימו לב: `GET(request?: Request)` ב-`clients/route.ts` — הפרמטר האופציונלי נשאר; `auth()` לא תלוי ב-request.
+  - בדיקות קיימות לעדכון (מוק session קבוע לפני שאר המוקים; לאמת ב-Grep שאין נוספים): `app/api/clients/__tests__/clients-status-param.test.ts`, `bulk-tag-and-export.test.ts` (כבר ממקק auth בגלל export — לוודא שהמוק מכסה גם את bulk-tag), `visits-route.test.ts`, `messages-route.test.ts`, `consents-route.test.ts`, `app/api/clients/[id]/__tests__/patch-no-status.test.ts`, `app/api/clients/[id]/restore/__tests__/restore-route.test.ts`, `app/api/segments/__tests__/route.test.ts`.
+  - בדיקות חדשות: בדיקת `401 ללא session` אחת לכל קובץ route ברשימה (למי שאין קובץ בדיקה — `merge`, `duplicates` — ליצור קובץ מינימלי `app/api/clients/__tests__/auth-guard.test.ts` עם `mockAuth` שמכסה את שניהם; למקק `@/lib/db/prisma` ואת מודולי ה-lib שה-route מייבא כדי לא לטעון Prisma אמיתי).
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; כל קבצי הבדיקה שנגעו בהם ירוקים; `Grep "await auth()"` מחזיר התאמה בכל 11 הקבצים, ומספר ההתאמות בכל קובץ שווה למספר ה-handlers המיוצאים בו; אף handler ללא `auth()`.
+
+- [x] 13.3 `auth()` בכל handler — תחום תורים, טיפולים וכללי מעקב (4 קבצי route) + עדכון בדיקות.
+  - קבצים ו-handlers:
+    - `app/api/appointments/route.ts` [GET, POST]
+    - `app/api/treatments/route.ts` [GET, POST]
+    - `app/api/treatments/[id]/follow-up-rules/route.ts` [GET, POST]
+    - `app/api/treatments/[id]/follow-up-rules/[ruleId]/route.ts` [DELETE]
+    - (כבר מוגנים — אין לגעת: `appointments/[id]`, `appointments/export`, `treatments/[id]`, `admin-tasks/[id]`.)
+  - בדיקות קיימות לעדכון: `app/api/appointments/__tests__/appointments-clinic-hours.test.ts` (**חסר** מוק auth — להוסיף), `appointments-route.test.ts` / `appointments-conflict.test.ts` / `appointments-treatment-color.test.ts` (כבר ממקקים auth — לוודא שהמוק קודם לשאר ועובד גם ל-GET/POST), `app/api/treatments/__tests__/route.test.ts`, `post-route.test.ts`, `follow-up-rules.test.ts`.
+  - בדיקות חדשות: `401 ללא session` ל-`GET /api/appointments`, `POST /api/appointments`, `GET+POST /api/treatments`, `GET+POST follow-up-rules`, `DELETE follow-up-rules/[ruleId]` — בקבצי הבדיקה הקיימים המתאימים (באמצעות `mockAuth` ב-`vi.hoisted` במקום הפונקציה הקבועה, או בקובץ `auth-guard.test.ts` נפרד לכל תיקייה אם הקובץ הקיים משתמש במוק קבוע).
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; כל קבצי הבדיקה שנגעו בהם ירוקים; `Grep "await auth()"` מראה התאמה לכל handler ב-4 הקבצים; אף handler ללא `auth()`.
+
+- [x] 13.4 `auth()` בכל handler — תחום תבניות הסכמה, טוקני חתימה והגדרות קליניקה (4 קבצי route) + עדכון בדיקות.
+  - קבצים ו-handlers:
+    - `app/api/consent-templates/route.ts` [GET, POST]
+    - `app/api/consent-templates/[id]/route.ts` [GET, PATCH, DELETE]
+    - `app/api/consent-tokens/route.ts` [POST] — יצירת קישור חתימה (מנהלי; **לא** לבלבל עם `/api/sign/[token]/submit` הציבורי)
+    - `app/api/settings/clinic/route.ts` [GET, PUT]
+    - (כבר מוגנים — אין לגעת: `consent-templates/[id]/hard-delete`, `consent-tokens/[id]/pdf`.)
+    - **אין לגעת** ב-`app/api/sign/[token]/submit/route.ts` — ציבורי בכוונה.
+  - בדיקות קיימות לעדכון: `app/api/consent-templates/__tests__/consent-templates.test.ts`, `consent-templates-versioning.test.ts`, `app/api/consent-tokens/__tests__/consent-tokens.test.ts`, `app/api/settings/__tests__/clinic-settings-route.test.ts`. לוודא ש-`app/api/sign/__tests__/submit.test.ts` **לא** דורש מוק auth ועדיין ירוק.
+  - בדיקות חדשות: `401 ללא session` לכל אחד מ-4 קבצי ה-route (handler אחד לפחות לכל קובץ, עדיפות ל-handler המשנה: POST/PATCH/PUT).
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; כל קבצי הבדיקה שנגעו בהם ירוקים (כולל `submit.test.ts` ללא שינוי); `Grep "await auth()"` מראה התאמה לכל handler ב-4 הקבצים; `sign/[token]/submit` ללא `auth()`.
+
+- [x] 13.5 `auth()` בכל handler — תחום קמפיינים ותבניות WhatsApp (8 קבצי route) + עדכון בדיקות.
+  - קבצים ו-handlers (עדיפות עליונה — `send` שולח הודעות אמיתיות לכל הנמענים):
+    - `app/api/campaigns/route.ts` [GET, POST]
+    - `app/api/campaigns/[id]/route.ts` [GET, PATCH, DELETE]
+    - `app/api/campaigns/[id]/send/route.ts` [POST]
+    - `app/api/campaigns/[id]/test/route.ts` [POST]
+    - `app/api/campaigns/[id]/report/route.ts` [GET]
+    - `app/api/campaigns/[id]/recipients/count/route.ts` [GET]
+    - `app/api/whatsapp/templates/route.ts` [GET, POST]
+    - `app/api/whatsapp/templates/[id]/route.ts` [GET, PATCH, DELETE]
+    - **אין לגעת** ב-`app/api/whatsapp/webhook/route.ts` — ציבורי בכוונה (ראו 13.6).
+  - בדיקות קיימות לעדכון: `app/api/campaigns/__tests__/campaigns.test.ts`, `app/api/whatsapp/templates/__tests__/templates.test.ts`. לוודא ש-`app/api/whatsapp/webhook/__tests__/webhook.test.ts` נשאר ירוק ללא מוק auth.
+  - בדיקות חדשות: `401 ללא session` ל-`POST /api/campaigns/[id]/send` (חובה — לוודא ששירות ה-WhatsApp/`prisma` **לא** נקראו), ל-`POST /api/campaigns/[id]/test`, ל-`GET /api/campaigns/[id]/report`, ל-`GET recipients/count`, ול-handler אחד לפחות בכל קובץ נוסף ברשימה. ל-routes ללא קובץ בדיקה קיים (`send`, `test`, `report`, `recipients/count`) — קובץ חדש `app/api/campaigns/__tests__/auth-guard.test.ts` עם `mockAuth` ומוקים ל-`@/lib/db/prisma` ולמודולי ה-lib שה-routes מייבאים.
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; כל קבצי הבדיקה שנגעו בהם ירוקים (כולל `webhook.test.ts` ללא שינוי); `Grep "await auth()"` מראה התאמה לכל handler ב-8 הקבצים; `whatsapp/webhook` ללא `auth()`.
+
+- [x] 13.6 Webhook של Twilio — אימות חתימה: וידוא, תיעוד ובדיקת רגרסיה (ללא הוספת ולידציה חדשה — קיימת).
+  - ממצא: אימות `X-Twilio-Signature` **כבר קיים** ב-`lib/whatsapp/twilio.ts` (`TwilioWhatsAppService.parseWebhookEvent` → `twilio.validateRequest(TWILIO_AUTH_TOKEN, signature, TWILIO_WEBHOOK_URL, body)`; חתימה לא-תקינה → `null`), ו-`app/api/whatsapp/webhook/route.ts` מעביר את ה-header `x-twilio-signature` ומפסיק עיבוד כש-`parseWebhookEvent` מחזיר `null` (מחזיר 200 `{ received: true }` בכוונה — מניעת retry-storm). במצב `WHATSAPP_MODE` ≠ `real` (`MockWhatsAppService`) ה-webhook תמיד מתעלם. **אין צורך ב-`validateRequest` נוסף ב-route.**
+  - יישום (קטן):
+    - הוספת הערת תיעוד בראש `app/api/whatsapp/webhook/route.ts`: "ציבורי בכוונה (allowlist ב-`lib/auth/public-paths.ts`); האימות הוא חתימת Twilio ב-`TwilioWhatsAppService.parseWebhookEvent` — אין להוסיף `auth()` כאן". ללא שינוי לוגיקה.
+    - בדיקת רגרסיה ב-`app/api/whatsapp/webhook/__tests__/webhook.test.ts`: `parseWebhookEvent` מחזיר `null` (חתימה לא תקינה) → תגובה 200 `{ received: true }` **ואף** מוק של `prisma` (`message.updateMany`, `client.findFirst`, `appointment.*`, `$transaction`) **לא** נקרא.
+    - בדיקת רגרסיה ב-`lib/whatsapp/__tests__/whatsapp.test.ts` (אם לא קיימת כבר — לבדוק ב-Grep "invalid-sig"): `validateRequest` מחזיר `false` → `parseWebhookEvent` מחזיר `null` גם עם payload תקין של `inbound_message`.
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; `webhook.test.ts` ו-`whatsapp.test.ts` ירוקים; לא נוסף `auth()` ל-webhook; לא נוספה תלות.
+
+- [x] 13.7 שומר-סף אוטומטי — בדיקת כיסוי סטטית לכל `app/api/**/route.ts` (מונעת רגרסיה בנתיבים עתידיים).
+  - מכסה: ודאות שאף handler תחת `app/api` לא נשאר ללא `auth()` אלא אם הוא ב-allowlist הציבורי — נאכף כבדיקה שרצה ב-vitest, ללא Edge/DB.
+  - יישום: קובץ בדיקה `app/api/__tests__/auth-coverage.test.ts` (Node fs בלבד — `fs.readdirSync` רקורסיבי מ-`app/api`, `path`, ללא import של routes):
+    - אוסף את כל קבצי `route.ts`; ממיר נתיב קובץ ל-pathname URL (`app/api/clients/[id]/route.ts` → `/api/clients/[id]`) ומסנן ציבוריים באמצעות `isPublicApiPath` מ-`@/lib/auth/public-paths` (מקור אמת יחיד — לא רשימה כפולה).
+    - לכל קובץ לא-ציבורי: סופר `export async function (GET|POST|PATCH|PUT|DELETE)` וסופר הופעות של `await auth()`; מצפה ש-`auth()` מופיע לפחות כמספר ה-handlers, ושיש `import { auth } from "@/lib/auth/auth"`.
+    - לכל קובץ ציבורי: מצפה ש**אין** `await auth()` (כדי שלא יישבר `/api/auth`, `sign`, `webhook`, `cron` בטעות).
+    - כשל מדווח את שם הקובץ וה-handler החסר בעברית.
+  - הערה: זוהי בדיקה טקסטואלית (regex) — מספיקה כשומר-סף; אינה תחליף ל-`401` tests של 13.2–13.5.
+  - קריטריוני קבלה: `npx tsc --noEmit` נקי; `auth-coverage.test.ts` ירוק על המצב שאחרי 13.1–13.6 (ואדום אם מסירים `auth()` מ-route כלשהו — לאמת ידנית פעם אחת ולהחזיר); אף handler ללא `auth()` פרט ל-allowlist.
+
+---
+
+## Notes/Risks — סריקת אבטחה (§13, planner 2026-11-13)
+
+- **ללא תלויות חדשות, ללא מיגרציה:** `next-auth` (v5 beta, `auth()` + `getToken`) ו-`twilio` (`validateRequest`) כבר מותקנים. אין שינוי בסכמת Prisma.
+- **אין RBAC (החלטת בעלים):** האימות הוא "מחובר/ת או לא" בלבד — זהה לכל נתיבי הניהול (§12). `role` נשמר ב-session לשימוש עתידי בלבד; אין להוסיף בדיקות תפקיד במסגרת §13.
+- **`/api/auth/*` חייב להישאר ציבורי** — אחרת `signIn`/`session`/`callback` נחסמים וההתחברות נשברת (לולאה ל-`/login`). זהו הסיכון המרכזי ב-13.1; `isPublicApiPath` + הבדיקות שלו הם ההגנה.
+- **`/api/cron/run` חייב להישאר ב-allowlist של ה-middleware** — Vercel Cron שולח `Authorization: Bearer <CRON_SECRET>` ולא עוגיית session; ה-route מאמת את הסוד בעצמו. אם ייחסם ב-middleware — תזכורות ומעקבים יומיים יפסיקו בשקט.
+- **סדר מומלץ:** 13.1 יכול להתבצע ראשון (הגנה מיידית על כל `/api`), אך אין תלות קשיחה — 13.2–13.5 בלתי-תלויות זו בזו וניתן להריצן בכל סדר. 13.7 אחרון (תלוי בכל הקודמים כדי להיות ירוק).
+- **Edge safety:** `middleware.ts` רץ ב-Edge — אסור לייבא `@/lib/auth/auth` (מושך Prisma + bcryptjs). `lib/auth/public-paths.ts` חייב להישאר ללא imports.
+- **ללא PII בלוגים:** תגובות 401 ובדיקות אינן כוללות פרטי לקוח/ה; אין להוסיף `console.log` של גוף בקשות בנתיבים שנגעו בהם.
+- **בדיקות ו-sandbox:** `vitest` אינו רץ מ-Bash של תת-סוכנים — הסשן הראשי מריץ. coder מאמת ב-`npx tsc --noEmit` ובקריאה סטטית; tester מדווח על סמך ריצה של הסשן הראשי.
+- **Webhook — החלטת עיצוב נשמרת:** חתימה לא תקינה מחזירה 200 (ולא 403) כדי למנוע retry-storm מ-Twilio; הבקשה פשוט אינה מעובדת. ראו 13.6. נקודה לעתיד (לא חוסם): ה-route קורא `req.json()` בעוד Twilio שולח `application/x-www-form-urlencoded` — יש לאמת מול Twilio בפרודקשן; מחוץ להיקף §13.
+- **אין נתיבי GET תחת `/api/sign`:** עמוד החתימה הוא `app/sign/[token]/page.tsx` (Server Component) — לא מושפע. רק `submit` (POST) קיים תחת `/api/sign`.
+
+## Notes/Risks — מחיקה לצמיתות (§12, planner 2026-11-13)
+
+- **ללא מיגרציה (מאושר אדריכלית):** כל ה-cascade נעשה ב-`$transaction` עם מחיקות מפורשות — אין צורך ב-`prisma migrate`. אם בעתיד יועדף DB-level cascade, זו החלטה נפרדת שתדרוש מיגרציה ידנית.
+- **PDF יתומים ב-R2:** מחיקת לקוח/ה (§12.2) ותבנית הסכמה (§12.5) מוחקת שורות `SignedConsent` ומשאירה PDF-ים ב-R2. אין פונקציית מחיקה ב-`lib/consent/r2.ts`. הוחלט: מחזירים את מפתחות ה-PDF לצורך ניקוי עתידי; מחיקה בפועל מ-R2 מחוץ להיקף.
+- **דגל להחלטת בעלים לפני 12.3 (היסטוריה קלינית):** מחיקת טיפול מוחקת את שורות `VisitTreatment` (קו-פריט היסטורי) — כלומר ביקורים היסטוריים יאבדו את התיעוד "אילו טיפולים בוצעו". זו הנקודה היחידה שבה cascade מוחק מידע קליני קיים. ברירת המחדל שתוכננה היא **מחיקה** (עקבי עם "cascade" שאישר הבעלים). חלופה: **לחסום** מחיקת טיפול אם קיימים ביקורים היסטוריים המקושרים אליו (להחזיר שגיאה "לא ניתן למחוק — הטיפול מתועד ב-N ביקורים"). **יש לאשר עם הבעלים** איזו התנהגות רצויה לפני תחילת 12.3.
+- **אבטחה (§11):** כל נתיבי המחיקה מוגנים באימות session בלבד (אין RBAC לפי בחירת הבעלים). אין להדפיס ללוג PII; מפתחות R2 מוחזרים בלי שמות לקוח/ה. מומלץ לתעד פעולת מחיקה לצמיתות (מי/מתי) — נשקל כהרחבה, לא חוסם.
+- **אטומיות:** כל מחיקה חייבת להיות ב-`prisma.$transaction` יחיד — כשל באמצע מחזיר rollback מלא (אין אובייקט "חצי מחוק").
+- **12.2 — toast (נפתר):** נוספה מערכת toast ללא תלות — `components/common/Toast.tsx` (`ToastProvider` ב-`AdminShell`, `useToast()` בטוח ללא Provider). כל ארבע המחיקות לצמיתות (12.2–12.5) והמחיקה הרכה של תבנית מציגות הודעת הצלחה.
+- **12.3 — הערות:** (א) `ConsentTemplate.treatmentIds` הוא JSON ללא relation — מחיקת טיפול לא מסירה אותו ממערכי התבניות (לא נאכף ב-DB); כדאי לנקות בעתיד או להתעלם בזמן סינון. (ב) toast — נפתר (ראו 12.2).
+- **12.5 — הערות:** (א) נפתר: מסך `/consent-templates` ו-`GET /api/consent-templates?includeInactive=1` מציגים גם תבניות לא-פעילות (פעילות תחילה); לשורה לא-פעילה זמינה רק "מחיקה לצמיתות" (ללא עריכה/מחיקה רכה). ברירת המחדל של ה-GET (לבחירת תבנית לחתימה) נותרה פעילות בלבד. (ב) toast — נפתר (ראו 12.2). (ג) ה-cascade אינו מסתמך על `onDelete` של `previousVersionId` ב-DB (המיגרציה מגדירה SetNull), אלא על הניתוק המפורש בטרנזקציה — נשמר כפי שתוכנן.
+- **12.2 — אטומיות ואיסוף משופר:** מעקבים (FollowUp) נאספים גם לפי `visitId` של ביקורי הלקוח/ה, ו-AdminTask נמחק לפי `followUpId` שנאסף (לא רק לפי `clientId`), כדי שלא ייוותר ילד Restrict שמפנה לרשומה שנמחקה.
+
 ## Notes/Risks — ניתוח פערים (Gap Analysis 2026-11-11)
 
 **מצב בפועל שנמצא באודיט:** כמעט כל דרישות ה-M של שלב 1 מומשו ברמת Backend/API ורכיבי UI (תחומים 1–10 מסומנים `[x]`, עם בדיקות). הבעיה שדיווח עליה הבעלים אינה "פיצ'רים חסרים" אלא **חוסר חיבור/ניווט ברמת הממשק**:

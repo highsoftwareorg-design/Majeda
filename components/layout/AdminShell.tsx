@@ -4,6 +4,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { AdminNav } from "@/components/layout/AdminNav";
 import { AdminGlobalSearch } from "@/components/layout/AdminGlobalSearch";
+import { ToastProvider } from "@/components/common/Toast";
 
 interface AdminShellProps {
   children: ReactNode;
@@ -25,6 +26,8 @@ interface AdminShellProps {
 export function AdminShell({ children, openTasksCount = 0 }: AdminShellProps) {
   return (
     <div dir="rtl" className="min-h-screen bg-champagne text-charcoal">
+      {/* ToastProvider ברמת ה-Shell — ההודעות שורדות ניווט בין מסכי הניהול */}
+      <ToastProvider>
       <header className="sticky top-0 z-40 border-b border-hairline-light bg-champagne/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col gap-1 px-3 py-1 sm:px-6">
           {/* relative — מעגן את פאנל הניווט הנייד מתחת לשורה העליונה */}
@@ -51,6 +54,7 @@ export function AdminShell({ children, openTasksCount = 0 }: AdminShellProps) {
       </header>
 
       <main className="mx-auto max-w-6xl p-4 sm:p-6">{children}</main>
+      </ToastProvider>
     </div>
   );
 }
