@@ -42,11 +42,16 @@ interface TemplateField {
   label: string;
 }
 
+/** סימני בקרה דו-כיווניים (LRM/RLM/embedding/isolate) — משפיעים על הסדר אך אינם מצוירים. */
+const BIDI_CONTROL_RE = /[‎‏‪-‮⁦-⁩]/;
+const LRM = '‎';
+
 /**
  * ממיר מחרוזת לסדר חזותי (visual order) עבור pdf-lib, שמצייר משמאל לימין.
  * הטקסט מתפרש כפסקה מימין-לשמאל; מקטעים לטיניים/ספרות (שמות מכשירים, טלפונים, תאריכים) נשמרים כבלוקים LTR.
+ * סימני בקרה (למשל LRM שעוטף תאריך+שעה כדי שיישארו יחידה אחת) מוסרים מהפלט.
  */
-function toVisualOrder(text: string): string {
+export function toVisualOrder(text: string): string {
   if (!text) return text;
   const last = text.length - 1;
   const embedding = bidi.getEmbeddingLevels(text, 'rtl');
@@ -64,7 +69,50 @@ function toVisualOrder(text: string): string {
       chars[j] = tmp;
     }
   }
-  return chars.join('');
+  return chars.filter((c) => !BIDI_CONTROL_RE.test(c)).join('');
+}
+
+const HEBREW_CHAR_RE = /[֐-׿יִ-ﭏ]/;
+const LTR_CHAR_RE = /[A-Za-z0-9]/;
+
+/** מקטע ציור: טקסט כפי שיש להעביר ל-drawText, והאם הוא מקטע עברי. */
+export interface VisualRun {
+  text: string;
+  rtl: boolean;
+}
+
+/**
+ * מפצל מחרוזת שכבר בסדר חזותי למקטעים לפי כיוון, לציור רציף משמאל לימין.
+ *
+ * למה זה נחוץ: fontkit (דרך pdf-lib) מזהה את הסקריפט החזק הראשון של המחרוזת; כשהוא עברי,
+ * הוא הופך בעצמו את *כל* רצף הגליפים (כולל ספרות) — מה שגרם להיפוך כפול של העברית
+ * ולהיפוך ספרות בתאריכים. לכן מקטע עברי מוחזר כאן בסדר *לוגי* (היפוך של החזותי),
+ * כך שההיפוך של fontkit מחזיר אותו לסדר החזותי הנכון; מקטעים לטיניים/ספרתיים נשארים כפי שהם
+ * (fontkit אינו הופך אותם). תווים ניטרליים (רווח, פיסוק) מצטרפים למקטע הנוכחי — מיקומם
+ * החזותי נשמר בכל מקרה.
+ */
+export function splitVisualRuns(visual: string): VisualRun[] {
+  const runs: Array<{ chars: string[]; rtl: boolean | null }> = [];
+  for (const ch of visual) {
+    const type: boolean | null = HEBREW_CHAR_RE.test(ch)
+      ? true
+      : LTR_CHAR_RE.test(ch)
+        ? false
+        : null;
+    const current = runs[runs.length - 1];
+    if (!current) {
+      runs.push({ chars: [ch], rtl: type });
+    } else if (type === null || current.rtl === null || current.rtl === type) {
+      current.chars.push(ch);
+      if (current.rtl === null) current.rtl = type;
+    } else {
+      runs.push({ chars: [ch], rtl: type });
+    }
+  }
+  return runs.map((r) => ({
+    rtl: r.rtl === true,
+    text: r.rtl === true ? r.chars.reverse().join('') : r.chars.join(''),
+  }));
 }
 
 /** שובר טקסט לשורות לפי רוחב מקסימלי (בסדר לוגי, לפני המרה לסדר חזותי). */
@@ -124,9 +172,12 @@ const DATE_TIME_FORMAT = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23',
 });
 
-/** dd/MM/yyyy HH:mm לפי שעון ישראל. */
+/**
+ * dd/MM/yyyy HH:mm לפי שעון ישראל, עטוף ב-LRM כדי שתאריך ושעה יישארו יחידה LTR אחת
+ * (אחרת בפסקה RTL השעה מוצגת לפני התאריך). ה-LRM מוסר לפני הציור (ראו toVisualOrder).
+ */
 function formatDateTime(date: Date): string {
-  return DATE_TIME_FORMAT.format(date).replace(',', '');
+  return `${LRM}${DATE_TIME_FORMAT.format(date).replace(',', '')}${LRM}`;
 }
 
 export async function generateConsentPdf(signedConsentId: string): Promise<Buffer> {
@@ -149,17 +200,21 @@ export async function generateConsentPdf(signedConsentId: string): Promise<Buffe
   const { width } = page.getSize();
   const contentWidth = width - LEFT_MARGIN - RIGHT_MARGIN;
 
-  /** מצייר שורה מיושרת לימין, אחרי המרה לסדר חזותי. */
+  /**
+   * מצייר שורה מיושרת לימין: המרה לסדר חזותי, פיצול למקטעים לפי כיוון (ראו splitVisualRuns)
+   * וציור רציף משמאל לימין החל מנקודת ההתחלה המחושבת לפי הרוחב הכולל.
+   */
   const drawRtl = (text: string, y: number, size: number, f: PDFFont, color: RGB): void => {
-    const visual = toVisualOrder(text);
-    const textWidth = f.widthOfTextAtSize(visual, size);
-    page.drawText(visual, {
-      x: width - RIGHT_MARGIN - textWidth,
-      y,
-      size,
-      font: f,
-      color,
-    });
+    const runs = splitVisualRuns(toVisualOrder(text)).map((run) => ({
+      ...run,
+      width: f.widthOfTextAtSize(run.text, size),
+    }));
+    const totalWidth = runs.reduce((sum, run) => sum + run.width, 0);
+    let x = width - RIGHT_MARGIN - totalWidth;
+    for (const run of runs) {
+      page.drawText(run.text, { x, y, size, font: f, color });
+      x += run.width;
+    }
   };
 
   let y = PAGE_HEIGHT - 50;

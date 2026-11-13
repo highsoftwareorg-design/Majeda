@@ -6,7 +6,7 @@
  * לאחר חתימה מוצלחת, הרשומה מסומנת כחתומה (signedAt !== null) ואין אפשרות לחתום שוב.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import crypto from 'crypto';
 import { saveConsentPdf } from '@/lib/consent/storage';
@@ -100,9 +100,16 @@ export async function POST(
     });
 
     // שלב 6: יצירת PDF ושמירה באחסון — משימה 7.8 (FR-CF-08)
-    // מופעל באופן אסינכרוני (fire-and-forget) כדי לא לעכב את תגובת החתימה.
-    saveConsentPdf(updated.id).catch((err) => {
-      console.error('[Consent PDF] PDF generation/storage failed:', err);
+    // רץ אחרי שליחת התגובה (לא מעכב את החתימה) אך בתוך `after()` של Next — ב-Vercel
+    // פונקציה serverless מוקפאת מיד אחרי התגובה, ו-fire-and-forget רגיל נקטע/מתעורר
+    // בבקשה אחרת עם חיבור DB מת (P1001) ⇒ pdfStorageKey נשאר null. `after()` משאיר
+    // את הפונקציה חיה עד שהעבודה מסתיימת.
+    after(async () => {
+      try {
+        await saveConsentPdf(updated.id);
+      } catch (err) {
+        console.error('[Consent PDF] PDF generation/storage failed:', err);
+      }
     });
 
     return NextResponse.json({ ok: true, signedConsentId: updated.id });
